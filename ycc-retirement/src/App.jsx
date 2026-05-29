@@ -2,10 +2,12 @@ import { useState, useMemo } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
+  PieChart, Pie, Cell,
 } from "recharts";
 import {
   Wallet, TrendingDown, ShieldCheck, Activity, HeartPulse, Coins, Calendar,
   PiggyBank, Landmark, TrendingUp, Skull, Layers, Repeat,
+  FileText, ShieldAlert, Sparkles,
 } from "lucide-react";
 
 // ===== 歷史報酬序列（價格報酬，不含配息）=====
@@ -212,10 +214,27 @@ export default function App() {
       });
     }
 
+    // ===== 促結區衍生數值 =====
+    // 1) 防禦資產多爭取的安全期年數（防禦線破產 − S&P 500 破產，未破產以壽命計）
+    const spRuinAge = ruinSP === null ? lifeAge : ruinSP;
+    const defRuinAge = ruinDefense === null ? lifeAge : ruinDefense;
+    const extraSafeYears = Math.max(0, defRuinAge - spRuinAge);
+
+    // 2) 退休現金流健康度（退休首年）：
+    //    保證型收益 = 勞保年金(年) + 生存金年流入；波動型依賴 = 仍需從市場提領的缺口
+    const firstPension = pensionFirstYearAnnual; // 退休首年勞保年金
+    const firstSurvival =
+      survivalFreq === 0 ? survivalAmount * 12 :
+      survivalFreq === 1 ? survivalAmount : 0; // 退休首年(第1年)：每兩年制此年不撥
+    const guaranteedIncome = firstPension + firstSurvival;
+    const marketDependent = Math.max(0, firstYearAnnual - guaranteedIncome);
+
     return {
       gapAtRetire, extraMonthly, lumpSum, fundAtRetire, contributionFV,
       data, retireAge,
       ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
+      spRuinAge, defRuinAge, extraSafeYears,
+      guaranteedIncome, marketDependent,
     };
   }, [
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
@@ -265,9 +284,6 @@ export default function App() {
       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${checked ? "translate-x-6" : ""}`} />
     </button>
   );
-
-  const ruinLabel = (age) =>
-    age === null ? `安全撐到 ${lifeAge} 歲` : `${age} 歲破產`;
 
   return (
     <div className="min-h-screen bg-stone-100 text-stone-800">
@@ -417,43 +433,123 @@ export default function App() {
               </ResponsiveContainer>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-center text-xs">
-              <div className="bg-stone-50 rounded-lg p-3 border border-green-600/30">
-                <div className="text-green-700 font-bold mb-1">完美預期</div>
-                <div className={`flex items-center justify-center gap-1 ${calc.ruin.perfect === null ? "text-stone-600" : "text-red-600 font-semibold"}`}>
-                  {calc.ruin.perfect !== null && <Skull size={12} />}
-                  {ruinLabel(calc.ruin.perfect)}
-                </div>
-              </div>
-              <div className="bg-stone-50 rounded-lg p-3 border border-red-600/30">
-                <div className="text-red-600 font-bold mb-1">S&P 500</div>
-                <div className={`flex items-center justify-center gap-1 ${calc.ruin.sp500 === null ? "text-stone-600" : "text-red-600 font-semibold"}`}>
-                  {calc.ruin.sp500 !== null && <Skull size={12} />}
-                  {ruinLabel(calc.ruin.sp500)}
-                </div>
-              </div>
-              <div className="bg-stone-50 rounded-lg p-3 border border-blue-600/30">
-                <div className="text-blue-600 font-bold mb-1">0050</div>
-                <div className={`flex items-center justify-center gap-1 ${calc.ruin.t0050 === null ? "text-stone-600" : "text-red-600 font-semibold"}`}>
-                  {calc.ruin.t0050 !== null && <Skull size={12} />}
-                  {ruinLabel(calc.ruin.t0050)}
-                </div>
-              </div>
-              <div className="bg-stone-50 rounded-lg p-3 border border-purple-600/40">
-                <div className="text-purple-700 font-bold mb-1">防禦機制</div>
-                <div className={`flex items-center justify-center gap-1 ${calc.ruin.defense === null ? "text-green-700 font-semibold" : "text-red-600 font-semibold"}`}>
-                  {calc.ruin.defense !== null && <Skull size={12} />}
-                  {ruinLabel(calc.ruin.defense)}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 text-xs text-stone-600 bg-stone-100 rounded-lg p-3">
-              退休當下預估總資產 NT$ {fmt(calc.fundAtRetire)}（含工作期定期定額終值 NT$ {fmt(calc.contributionFV)}）
+            <div className="mt-3 text-xs text-stone-500 flex flex-wrap gap-x-4 gap-y-1 justify-center">
+              <span>退休當下預估總資產 NT$ {fmt(calc.fundAtRetire)}</span>
+              <span>含工作期定期定額終值 NT$ {fmt(calc.contributionFV)}</span>
             </div>
           </div>
         </div>
       </main>
+
+      {/* ===== 促結與決策區 ===== */}
+      <section className="max-w-7xl mx-auto px-6 pb-10">
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles size={20} className="text-orange-500" />
+          <h2 className="text-xl font-bold text-stone-900">促結與決策區</h2>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 1) 防禦效益對比 Highlight Cards（佔兩欄）*/}
+          <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+            <h3 className="text-sm font-semibold text-stone-500 mb-4 flex items-center gap-2">
+              <ShieldAlert size={16} className="text-orange-500" /> 防禦效益對比：破產年齡關鍵差異
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl p-5 bg-red-50 border border-red-200 text-center">
+                <div className="text-xs font-medium text-red-500 mb-1">真實市場衝擊（無防禦）</div>
+                <div className="flex items-center justify-center gap-2">
+                  <Skull size={22} className="text-red-600" />
+                  <span className="text-4xl font-black text-red-600">{calc.spRuinAge}</span>
+                  <span className="text-lg text-red-500 self-end mb-1">歲</span>
+                </div>
+                <div className="text-xs text-red-500 mt-1">{calc.ruin.sp500 === null ? "撐到壽命（未破產）" : "資產見底破產"}</div>
+              </div>
+              <div className="rounded-xl p-5 bg-teal-50 border border-teal-200 text-center">
+                <div className="text-xs font-medium text-teal-600 mb-1">防禦機制啟動</div>
+                <div className="flex items-center justify-center gap-2">
+                  <ShieldCheck size={22} className="text-teal-700" />
+                  <span className="text-4xl font-black text-teal-700">{calc.defRuinAge}</span>
+                  <span className="text-lg text-teal-600 self-end mb-1">歲</span>
+                </div>
+                <div className="text-xs text-teal-600 mt-1">{calc.ruin.defense === null ? "撐到壽命（未破產）" : "資產見底破產"}</div>
+              </div>
+            </div>
+            <div className="mt-5 rounded-xl p-5 bg-gradient-to-r from-orange-500 to-orange-600 text-center shadow-sm">
+              <div className="text-sm text-orange-100 mb-1">防禦資產為您多爭取了</div>
+              <div className="text-5xl font-black text-white">
+                {calc.extraSafeYears} <span className="text-2xl">年</span>
+              </div>
+              <div className="text-sm text-orange-100 mt-1">的安全期</div>
+            </div>
+          </div>
+
+          {/* 2) 退休現金流健康度 Donut */}
+          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm flex flex-col">
+            <h3 className="text-sm font-semibold text-stone-500 mb-2 flex items-center gap-2">
+              <Activity size={16} className="text-teal-700" /> 退休現金流健康度
+            </h3>
+            <p className="text-xs text-stone-400 mb-2">退休首年現金流結構</p>
+            <div className="flex-1 min-h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "保證型收益", value: Math.round(calc.guaranteedIncome) },
+                      { name: "波動型依賴", value: Math.round(calc.marketDependent) },
+                    ]}
+                    dataKey="value" nameKey="name"
+                    innerRadius={55} outerRadius={80} paddingAngle={2}
+                  >
+                    <Cell fill="#0f766e" />
+                    <Cell fill="#f97316" />
+                  </Pie>
+                  <Tooltip formatter={(v) => `NT$ ${fmt(v)}`} contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-1.5 mt-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-stone-600">
+                  <span className="w-3 h-3 rounded-sm inline-block" style={{ background: "#0f766e" }} /> 保證型收益（社保+現金流）
+                </span>
+                <span className="font-semibold text-stone-800">NT$ {fmt(calc.guaranteedIncome)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-stone-600">
+                  <span className="w-3 h-3 rounded-sm inline-block" style={{ background: "#f97316" }} /> 波動型依賴（市場缺口）
+                </span>
+                <span className="font-semibold text-stone-800">NT$ {fmt(calc.marketDependent)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3) 行動方案與匯出區 */}
+        <div className="mt-6 bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+            <div className="md:col-span-2">
+              <h3 className="text-sm font-semibold text-stone-500 mb-2">行動方案</h3>
+              <p className="text-stone-700">
+                為補足退休缺口，建議您在現有投入之外，
+                <span className="font-bold text-orange-600"> 每月再投入 NT$ {fmt(calc.extraMonthly)}</span>
+                ，或一次性單筆投入 <span className="font-bold text-orange-600">NT$ {fmt(calc.lumpSum)}</span>。
+              </p>
+              <p className="text-xs text-stone-400 mt-2">
+                透過防禦型資產配置，可將破產風險年齡自 {calc.spRuinAge} 歲延後至 {calc.defRuinAge} 歲，多爭取 {calc.extraSafeYears} 年安全期。
+              </p>
+            </div>
+            <div className="flex justify-center md:justify-end">
+              <button
+                onClick={() => alert("專屬 PDF 報告產製功能開發中：\n\n將輸出含破產年限對比、現金流健康度與行動方案的完整退休規劃書。")}
+                className="flex items-center gap-2 bg-gradient-to-r from-teal-700 to-teal-800 hover:from-teal-800 hover:to-teal-900 text-white font-bold px-6 py-4 rounded-xl shadow-md transition-colors"
+              >
+                <FileText size={20} />
+                生成專屬 PDF 報告
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <footer className="text-center text-xs text-stone-400 py-6 border-t border-stone-200">
         退休資產管理系統 · 歷史報酬僅供教育參考，不代表未來績效，不構成投資建議
