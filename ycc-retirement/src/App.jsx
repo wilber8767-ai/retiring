@@ -7,7 +7,7 @@ import {
 import {
   Wallet, TrendingDown, ShieldCheck, Activity, HeartPulse, Coins, Calendar,
   PiggyBank, Landmark, TrendingUp, Skull, Layers, Repeat,
-  FileText, ShieldAlert, Sparkles,
+  FileText,
 } from "lucide-react";
 
 // ===== 歷史報酬序列（價格報酬，不含配息）=====
@@ -323,8 +323,9 @@ export default function App() {
         </div>
       </section>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
+      <main className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* 左欄：輸入控制面板 */}
+        <div className="lg:col-span-3 space-y-6">
           <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
               <Calendar size={18} className="text-teal-700" /> 年齡控制
@@ -406,15 +407,16 @@ export default function App() {
           </div>
         </div>
 
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm h-full">
+        {/* 右欄：圖表 + 解決方案，垂直堆疊 */}
+        <div className="lg:col-span-9 space-y-6">
+          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
             <h2 className="text-lg font-bold mb-1">資產剩餘價值模擬</h2>
             <p className="text-xs text-stone-500 mb-4">
               四情境對比 · 退休後前兩年強制熊市（-20%／-25%）模擬報酬順序風險
             </p>
             <div className="h-[460px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={calc.data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                <LineChart data={calc.data} margin={{ top: 40, right: 24, left: 10, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
                   <XAxis dataKey="age" stroke="#78716c"
                     label={{ value: "年齡", position: "insideBottomRight", offset: -5, fill: "#78716c" }} />
@@ -424,7 +426,7 @@ export default function App() {
                     contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
                   <Legend />
                   <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
-                    label={{ value: "退休", fill: "#0f766e", position: "top" }} />
+                    label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -20 }} />
                   <Line type="monotone" dataKey="perfect" name="完美預期(Glide Path)" stroke="#22c55e" strokeDasharray="6 4" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="sp500" name="S&P 500 真實序列" stroke="#ef4444" strokeWidth={2.5} dot={false} />
                   <Line type="monotone" dataKey="t0050" name="0050 真實序列" stroke="#3b82f6" strokeWidth={2.5} dot={false} />
@@ -438,58 +440,50 @@ export default function App() {
               <span>含工作期定期定額終值 NT$ {fmt(calc.contributionFV)}</span>
             </div>
           </div>
-        </div>
-      </main>
 
-      {/* ===== 促結與決策區 ===== */}
-      <section className="max-w-7xl mx-auto px-6 pb-10">
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles size={20} className="text-orange-500" />
-          <h2 className="text-xl font-bold text-stone-900">促結與決策區</h2>
-        </div>
+          {/* 資產壓力測試與解決方案（右欄內，圖表正下方） */}
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck size={18} className="text-teal-700" />
+              <h2 className="text-lg font-bold text-stone-900">資產壓力測試與解決方案</h2>
+            </div>
+            <p className="text-xs text-stone-400 mb-4">基於上述壓力測試之客觀診斷結果</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 1) 防禦效益對比 Highlight Cards（佔兩欄）*/}
-          <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-            <h3 className="text-sm font-semibold text-stone-500 mb-4 flex items-center gap-2">
-              <ShieldAlert size={16} className="text-orange-500" /> 防禦效益對比：破產年齡關鍵差異
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl p-5 bg-red-50 border border-red-200 text-center">
-                <div className="text-xs font-medium text-red-500 mb-1">真實市場衝擊（無防禦）</div>
-                <div className="flex items-center justify-center gap-2">
-                  <Skull size={22} className="text-red-600" />
-                  <span className="text-4xl font-black text-red-600">{calc.spRuinAge}</span>
-                  <span className="text-lg text-red-500 self-end mb-1">歲</span>
+          {/* 1) 壓力測試結果對比 Stress Test Results */}
+          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm flex flex-col">
+            <h3 className="text-xs font-semibold text-stone-500 mb-4 uppercase tracking-wide">壓力測試結果對比</h3>
+            <div className="space-y-3">
+              <div className="rounded-lg p-4 bg-stone-50 border border-stone-200">
+                <div className="text-xs text-stone-500 mb-1">無防禦機制</div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-stone-800">{calc.spRuinAge}</span>
+                  <span className="text-sm text-stone-500">歲</span>
+                  <span className="text-xs text-stone-400 ml-1">{calc.ruin.sp500 === null ? "未觸底" : "資產觸底"}</span>
                 </div>
-                <div className="text-xs text-red-500 mt-1">{calc.ruin.sp500 === null ? "撐到壽命（未破產）" : "資產見底破產"}</div>
               </div>
-              <div className="rounded-xl p-5 bg-teal-50 border border-teal-200 text-center">
-                <div className="text-xs font-medium text-teal-600 mb-1">防禦機制啟動</div>
-                <div className="flex items-center justify-center gap-2">
-                  <ShieldCheck size={22} className="text-teal-700" />
-                  <span className="text-4xl font-black text-teal-700">{calc.defRuinAge}</span>
-                  <span className="text-lg text-teal-600 self-end mb-1">歲</span>
+              <div className="rounded-lg p-4 bg-stone-50 border border-stone-200">
+                <div className="text-xs text-stone-500 mb-1">加入防禦資產</div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-stone-800">{calc.defRuinAge}</span>
+                  <span className="text-sm text-stone-500">歲</span>
+                  <span className="text-xs text-stone-400 ml-1">{calc.ruin.defense === null ? "未觸底" : "資產觸底"}</span>
                 </div>
-                <div className="text-xs text-teal-600 mt-1">{calc.ruin.defense === null ? "撐到壽命（未破產）" : "資產見底破產"}</div>
               </div>
             </div>
-            <div className="mt-5 rounded-xl p-5 bg-gradient-to-r from-orange-500 to-orange-600 text-center shadow-sm">
-              <div className="text-sm text-orange-100 mb-1">防禦資產為您多爭取了</div>
-              <div className="text-5xl font-black text-white">
-                {calc.extraSafeYears} <span className="text-2xl">年</span>
-              </div>
-              <div className="text-sm text-orange-100 mt-1">的安全期</div>
+            <div className="mt-4 flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-teal-50 border border-teal-200">
+              <TrendingUp size={16} className="text-teal-700" />
+              <span className="text-sm text-stone-600">有效延長絕對安全期</span>
+              <span className="text-xl font-bold text-teal-700">{calc.extraSafeYears}</span>
+              <span className="text-sm text-stone-600">年</span>
             </div>
           </div>
 
-          {/* 2) 退休現金流健康度 Donut */}
+          {/* 2) 退休現金流結構分析 Donut */}
           <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm flex flex-col">
-            <h3 className="text-sm font-semibold text-stone-500 mb-2 flex items-center gap-2">
-              <Activity size={16} className="text-teal-700" /> 退休現金流健康度
-            </h3>
-            <p className="text-xs text-stone-400 mb-2">退休首年現金流結構</p>
-            <div className="flex-1 min-h-[180px]">
+            <h3 className="text-xs font-semibold text-stone-500 mb-1 uppercase tracking-wide">退休現金流結構分析</h3>
+            <p className="text-xs text-stone-400 mb-2">退休首年收入來源組成</p>
+            <div className="flex-1 min-h-[150px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -498,10 +492,10 @@ export default function App() {
                       { name: "波動型依賴", value: Math.round(calc.marketDependent) },
                     ]}
                     dataKey="value" nameKey="name"
-                    innerRadius={55} outerRadius={80} paddingAngle={2}
+                    innerRadius={48} outerRadius={70} paddingAngle={2}
                   >
                     <Cell fill="#0f766e" />
-                    <Cell fill="#f97316" />
+                    <Cell fill="#f59e0b" />
                   </Pie>
                   <Tooltip formatter={(v) => `NT$ ${fmt(v)}`} contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
                 </PieChart>
@@ -510,46 +504,45 @@ export default function App() {
             <div className="space-y-1.5 mt-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-stone-600">
-                  <span className="w-3 h-3 rounded-sm inline-block" style={{ background: "#0f766e" }} /> 保證型收益（社保+現金流）
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: "#0f766e" }} /> 保證型收益（社會保險+穩定現金流）
                 </span>
-                <span className="font-semibold text-stone-800">NT$ {fmt(calc.guaranteedIncome)}</span>
+                <span className="font-semibold text-stone-800">{fmt(calc.guaranteedIncome)}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-stone-600">
-                  <span className="w-3 h-3 rounded-sm inline-block" style={{ background: "#f97316" }} /> 波動型依賴（市場缺口）
+                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: "#f59e0b" }} /> 波動型依賴（市場提領缺口）
                 </span>
-                <span className="font-semibold text-stone-800">NT$ {fmt(calc.marketDependent)}</span>
+                <span className="font-semibold text-stone-800">{fmt(calc.marketDependent)}</span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* 3) 行動方案與匯出區 */}
-        <div className="mt-6 bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-            <div className="md:col-span-2">
-              <h3 className="text-sm font-semibold text-stone-500 mb-2">行動方案</h3>
-              <p className="text-stone-700">
-                為補足退休缺口，建議您在現有投入之外，
-                <span className="font-bold text-orange-600"> 每月再投入 NT$ {fmt(calc.extraMonthly)}</span>
-                ，或一次性單筆投入 <span className="font-bold text-orange-600">NT$ {fmt(calc.lumpSum)}</span>。
-              </p>
-              <p className="text-xs text-stone-400 mt-2">
-                透過防禦型資產配置，可將破產風險年齡自 {calc.spRuinAge} 歲延後至 {calc.defRuinAge} 歲，多爭取 {calc.extraSafeYears} 年安全期。
-              </p>
+          {/* 3) 系統優化建議與匯出 */}
+          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm flex flex-col">
+            <h3 className="text-xs font-semibold text-stone-500 mb-4 uppercase tracking-wide">缺口填補計畫</h3>
+            <div className="rounded-lg p-4 bg-stone-50 border border-stone-200 mb-3">
+              <div className="text-xs text-stone-500 mb-1">每月需額外投入（PMT）</div>
+              <div className="text-2xl font-bold text-stone-800">NT$ {fmt(calc.extraMonthly)}</div>
             </div>
-            <div className="flex justify-center md:justify-end">
-              <button
-                onClick={() => alert("專屬 PDF 報告產製功能開發中：\n\n將輸出含破產年限對比、現金流健康度與行動方案的完整退休規劃書。")}
-                className="flex items-center gap-2 bg-gradient-to-r from-teal-700 to-teal-800 hover:from-teal-800 hover:to-teal-900 text-white font-bold px-6 py-4 rounded-xl shadow-md transition-colors"
-              >
-                <FileText size={20} />
-                生成專屬 PDF 報告
-              </button>
+            <div className="rounded-lg p-4 bg-stone-50 border border-stone-200">
+              <div className="text-xs text-stone-500 mb-1">或單筆投入</div>
+              <div className="text-2xl font-bold text-stone-800">NT$ {fmt(calc.lumpSum)}</div>
             </div>
+            <div className="flex-1" />
+            <button
+              onClick={() => alert("資產壓力測試報告產製功能開發中。\n\n將輸出含壓力測試結果、現金流結構分析與缺口填補計畫之完整診斷報告（PDF）。")}
+              className="mt-4 flex items-center justify-center gap-2 border border-teal-700 text-teal-700 hover:bg-teal-50 font-semibold px-5 py-3 rounded-lg transition-colors"
+            >
+              <FileText size={18} />
+              匯出資產壓力測試報告（PDF）
+            </button>
+          </div>
+          </div>
+          {/* /資產壓力測試與解決方案 */}
           </div>
         </div>
-      </section>
+        {/* /右欄 */}
+      </main>
 
       <footer className="text-center text-xs text-stone-400 py-6 border-t border-stone-200">
         退休資產管理系統 · 歷史報酬僅供教育參考，不代表未來績效，不構成投資建議
