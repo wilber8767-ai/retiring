@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Wallet, TrendingDown, ShieldCheck, Activity, HeartPulse, Coins, Calendar,
-  PiggyBank, Landmark, TrendingUp, Skull, Layers, Repeat,
+  PiggyBank, Landmark, TrendingUp, Skull, Layers,
   FileText, UserRound,
 } from "lucide-react";
 
@@ -139,9 +139,11 @@ export default function App() {
   // 圖表曲線可見性（預設只顯示完美預期，其餘由按鈕開啟）
   const [showLines, setShowLines] = useState({ perfect: true, t0050: false, sp500: false, defense: false });
 
-  // ★防禦型資產配置（生存金）
-  const [survivalAmount, setSurvivalAmount] = useState(200000); // 每次領取生存金金額
-  const [survivalFreq, setSurvivalFreq] = useState(2); // 領取頻率：0=每月, 1=每年, 2=每兩年
+  // ★三層防禦配置（退休那刻將資產拆成現金/配息/成長三層；僅作用於防禦機制紫線）
+  const [cashPct, setCashPct] = useState(15);       // 現金安全層 %
+  const [incomePct, setIncomePct] = useState(45);   // 配息收益層 %
+  // 成長層 % = 100 - cashPct - incomePct（自動計算）
+  const [dividendRate, setDividendRate] = useState(4); // 配息層年配息率 %
 
   const MEDICAL_DEBT = 5000000;
   const MEDICAL_AGE = 75;
@@ -239,7 +241,12 @@ export default function App() {
     let balPerfect = initialFund;
     let balSP = initialFund;
     let bal0050 = initialFund;
-    let balDefense = initialFund; // ★紫線：基礎同 S&P 500 + 生存金
+    let balDefense = initialFund; // ★紫線：退休前單一資產池
+    // 三層（退休那刻才拆分）
+    let cashLayer = 0, incomeLayer = 0, growthLayer = 0;
+    let layersInitialized = false;
+    const growthPct = Math.max(0, 100 - cashPct - incomePct);
+    const divRate = dividendRate / 100;
     let bankruptPerfect = false, bankruptSP = false, bankrupt0050 = false, bankruptDefense = false;
     let ruinPerfect = null, ruinSP = null, ruin0050 = null, ruinDefense = null;
 
@@ -265,14 +272,6 @@ export default function App() {
         retireYearIndex === 2 ? SHOCK_Y2 : null;
       const rSP = shockReturn !== null ? shockReturn : histSP;
       const r0050 = shockReturn !== null ? shockReturn : hist0050;
-
-      // 生存金當年撥入金額（退休後，依頻率）
-      // freq 0=每月（該年撥入 12 次）, 1=每年, 2=每兩年
-      let survivalInflow = 0;
-      if (isRetired && retireYearIndex > 0) {
-        if (survivalFreq === 0) survivalInflow = survivalAmount * 12;
-        else if (retireYearIndex % survivalFreq === 0) survivalInflow = survivalAmount;
-      }
 
       // 綠線：完美預期（Glide Path，無衝擊）
       if (!bankruptPerfect) {
@@ -302,14 +301,48 @@ export default function App() {
         if (bal0050 <= 0) { bal0050 = 0; bankrupt0050 = true; ruin0050 = age; }
       } else bal0050 = 0;
 
-      // ★紫線：防禦機制（基礎遭遇 = S&P 500 完全相同，額外加生存金現金流）
+      // ★紫線：防禦機制（三層架構）
       if (!bankruptDefense) {
-        balDefense = balDefense * (1 + rSP);
-        if (isRetired) balDefense -= netDrawNow;
-        else balDefense += annualContribution;
-        if (survivalInflow > 0) balDefense += survivalInflow; // ★底層穩定現金流注入
-        if (includeMedical && age === MEDICAL_AGE) balDefense -= MEDICAL_DEBT;
-        if (balDefense <= 0) { balDefense = 0; bankruptDefense = true; ruinDefense = age; }
+        if (!isRetired) {
+          // 退休前：單一資產池，與 S&P 基礎相同累積
+          balDefense = balDefense * (1 + rSP) + annualContribution;
+        } else {
+          // 退休那一刻：把累積資產拆成三層（只做一次）
+          if (!layersInitialized) {
+            cashLayer = balDefense * (cashPct / 100);
+            incomeLayer = balDefense * (incomePct / 100);
+            growthLayer = balDefense * (growthPct / 100);
+            layersInitialized = true;
+          }
+          // 成長層：跟著市場波動（含退休後前兩年熊市）
+          growthLayer = growthLayer * (1 + rSP);
+          // 配息層：本金不變，產生年配息現金流
+          const dividendIncome = incomeLayer * divRate;
+          // 當年需從資產淨提領（已扣勞保年金）
+          let need = netDrawNow;
+          // 1) 先用配息收益
+          need -= dividendIncome;
+          // 2) 不足從現金層提領
+          if (need > 0) {
+            const fromCash = Math.min(cashLayer, need);
+            cashLayer -= fromCash;
+            need -= fromCash;
+          }
+          // 3) 現金層空了，動用成長層
+          if (need > 0) {
+            growthLayer -= need;
+            need = 0;
+          }
+          // 醫療負債：優先扣現金、再扣成長
+          if (includeMedical && age === MEDICAL_AGE) {
+            let debt = MEDICAL_DEBT;
+            const c = Math.min(cashLayer, debt); cashLayer -= c; debt -= c;
+            if (debt > 0) growthLayer -= debt;
+          }
+          if (growthLayer < 0) growthLayer = 0;
+          balDefense = cashLayer + incomeLayer + growthLayer;
+          if (balDefense <= 0) { balDefense = 0; bankruptDefense = true; ruinDefense = age; }
+        }
       } else balDefense = 0;
 
       data.push({
@@ -370,12 +403,13 @@ export default function App() {
     const extraSafeYears = Math.max(0, defRuinAge - spRuinAge);
 
     // 2) 退休現金流健康度（退休首年）：
-    //    保證型收益 = 勞保年金(年) + 生存金年流入；波動型依賴 = 仍需從市場提領的缺口
+    //    保證型收益 = 勞保年金(年) + 配息層年配息；波動型依賴 = 仍需從市場提領的缺口
     const firstPension = pensionFirstYearAnnual; // 退休首年勞保年金
-    const firstSurvival =
-      survivalFreq === 0 ? survivalAmount * 12 :
-      survivalFreq === 1 ? survivalAmount : 0; // 退休首年(第1年)：每兩年制此年不撥
-    const guaranteedIncome = firstPension + firstSurvival;
+    // 配息層 = 退休那刻資產 × 配息比例；年配息 = 配息層 × 配息率
+    const defenseRetireRow = data.find((d) => d.age === retireAge);
+    const incomeLayerAmount = (defenseRetireRow ? defenseRetireRow.defense : 0) * (incomePct / 100);
+    const firstDividend = incomeLayerAmount * (dividendRate / 100);
+    const guaranteedIncome = firstPension + firstDividend;
     const marketDependent = Math.max(0, firstYearAnnual - guaranteedIncome);
 
     return {
@@ -391,7 +425,7 @@ export default function App() {
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
     monthlyContribution, annualReturn, retireReturn, inflation,
     includePension, monthlyPension, includeMedical,
-    survivalAmount, survivalFreq,
+    cashPct, incomePct, dividendRate,
   ]);
 
   // ===== 子元件 =====
@@ -517,34 +551,24 @@ export default function App() {
             <div className="space-y-6">
               <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Layers size={18} className="text-teal-700" /> 防禦型資產配置
+                  <Layers size={18} className="text-teal-700" /> 退休資產三層配置
                 </h2>
-                <NumberInput label={survivalFreq === 0 ? "每月領取生存金金額" : "每次領取生存金金額"} value={survivalAmount} setValue={setSurvivalAmount} suffix="元" step={10000} icon={ShieldCheck} />
-                <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
-                  <Repeat size={16} className="text-teal-700" /> 領取頻率
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => setSurvivalFreq(0)}
-                    className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 0 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
-                    每月
-                  </button>
-                  <button
-                    onClick={() => setSurvivalFreq(1)}
-                    className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 1 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
-                    每年
-                  </button>
-                  <button
-                    onClick={() => setSurvivalFreq(2)}
-                    className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 2 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
-                    每兩年
-                  </button>
+                <p className="text-xs text-stone-500 mb-4">退休那一刻將資產拆成三層，僅作用於「防禦機制」紫線</p>
+                <NumberInput label="現金安全層比例" value={cashPct} setValue={setCashPct} suffix="%" step={1} icon={Wallet} />
+                <NumberInput label="配息收益層比例" value={incomePct} setValue={setIncomePct} suffix="%" step={1} icon={Coins} />
+                <div className="mb-4 flex items-center justify-between rounded-lg bg-stone-100 px-3 py-2">
+                  <span className="text-sm text-stone-600">成長層比例（自動）</span>
+                  <span className={`font-bold ${(100 - cashPct - incomePct) < 0 ? "text-red-500" : "text-teal-700"}`}>
+                    {Math.max(0, 100 - cashPct - incomePct)}%
+                  </span>
                 </div>
-                <p className="text-xs text-stone-500 mt-3">
-                  {survivalFreq === 0
-                    ? "退休後每月撥入生存金（圖表以年計，等於該年領取 12 次），僅作用於「防禦機制」紫線"
-                    : "退休後依此頻率撥入生存金，僅作用於圖表中的「防禦機制」紫線"}
+                <NumberInput label="配息層年配息率" value={dividendRate} setValue={setDividendRate} suffix="%" step={0.1} icon={TrendingUp} />
+                <p className="text-xs text-stone-500">
+                  現金層用完不補；配息層本金不變、每年產生配息；成長層續留市場波動。提領順序：配息 → 現金層 → 成長層。
                 </p>
+                {(100 - cashPct - incomePct) < 0 && (
+                  <p className="text-xs text-red-500 mt-2">⚠ 現金層 + 配息層超過 100%，請調整比例</p>
+                )}
               </div>
               <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -759,7 +783,7 @@ export default function App() {
             <button
               onClick={() => navigate("/report", { state: {
                 client: { clientName, clientGender, clientBirth },
-                params: { currentAge, retireAge, lifeAge, monthlyExpense, initialFund, monthlyContribution, annualReturn, retireReturn, inflation, includePension, monthlyPension, includeMedical, survivalAmount, survivalFreq },
+                params: { currentAge, retireAge, lifeAge, monthlyExpense, initialFund, monthlyContribution, annualReturn, retireReturn, inflation, includePension, monthlyPension, includeMedical, cashPct, incomePct, dividendRate },
                 calc,
               } })}
               className="no-print mt-4 flex items-center justify-center gap-2 border border-teal-700 text-teal-700 hover:bg-teal-50 font-semibold px-5 py-3 rounded-lg transition-colors"
