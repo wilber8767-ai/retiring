@@ -7,7 +7,7 @@ import {
 import {
   Wallet, TrendingDown, ShieldCheck, Activity, HeartPulse, Coins, Calendar,
   PiggyBank, Landmark, TrendingUp, Skull, Layers, Repeat,
-  FileText,
+  FileText, UserRound,
 } from "lucide-react";
 
 // ===== 歷史報酬序列（價格報酬，不含配息）=====
@@ -110,6 +110,11 @@ function Toggle({ checked, onChange }) {
 }
 
 export default function App() {
+  // ===== 客戶基本資料（純記錄，不影響計算；生日會連動當前年齡）=====
+  const [clientName, setClientName] = useState("");
+  const [clientGender, setClientGender] = useState("");
+  const [clientBirth, setClientBirth] = useState("");
+
   // ===== 狀態 =====
   const [currentAge, setCurrentAge] = useState(30);
   const [retireAge, setRetireAge] = useState(65);
@@ -128,6 +133,9 @@ export default function App() {
 
   const [includeMedical, setIncludeMedical] = useState(true); // 75 歲扣 500 萬
 
+  // 圖表曲線可見性（預設只顯示完美預期，其餘由按鈕開啟）
+  const [showLines, setShowLines] = useState({ perfect: true, t0050: false, sp500: false, defense: false });
+
   // ★防禦型資產配置（生存金）
   const [survivalAmount, setSurvivalAmount] = useState(200000); // 每次領取生存金金額
   const [survivalFreq, setSurvivalFreq] = useState(2); // 領取頻率：0=每月, 1=每年, 2=每兩年
@@ -136,6 +144,18 @@ export default function App() {
   const MEDICAL_AGE = 75;
 
   // ===== 核心運算 =====
+  // 生日變動 -> 自動換算當前年齡並回填滑桿
+  useEffect(() => {
+    if (!clientBirth) return;
+    const b = new Date(clientBirth);
+    if (isNaN(b.getTime())) return;
+    const now = new Date();
+    let age = now.getFullYear() - b.getFullYear();
+    const m = now.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
+    if (age >= 20 && age <= 65) setCurrentAge(age);
+  }, [clientBirth]);
+
   const calc = useMemo(() => {
     const rPre = annualReturn / 100;   // 退休前報酬
     const rPost = retireReturn / 100;  // 退休後保守報酬（綠線用）
@@ -308,6 +328,7 @@ export default function App() {
 
     return {
       gapAtRetire, extraMonthly, lumpSum, fundAtRetire, contributionFV,
+      firstYearMonthly,
       data, retireAge,
       ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
       spRuinAge, defRuinAge, extraSafeYears,
@@ -331,29 +352,44 @@ export default function App() {
         </div>
       </header>
 
-      <section className="px-6 py-8 bg-gradient-to-b from-white to-stone-50 border-b border-stone-200">
-        <div className="max-w-5xl mx-auto text-center">
-          <p className="text-stone-500 text-sm flex items-center justify-center gap-2 mb-2">
-            <TrendingDown size={16} className="text-red-400" />
-            預估財富缺口（已計入工作期投入、勞保年金與保守報酬）
-          </p>
-          <div className="text-5xl md:text-6xl font-black text-teal-700 mb-2">
-            NT$ {fmt(calc.gapAtRetire)}
+      <section className="px-6 py-6 bg-gradient-to-b from-white to-stone-50 border-b border-stone-200">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center gap-2 mb-4">
+            <UserRound size={18} className="text-teal-700" />
+            <h2 className="text-lg font-bold text-stone-900">客戶基本資料</h2>
+            <span className="text-xs text-stone-400">（生日將自動帶入下方當前年齡）</span>
           </div>
-          <p className="text-stone-400 text-xs mb-6">（以退休年現值計算之資金缺口）</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
-            <div className="bg-white border border-teal-600/30 rounded-xl p-5 shadow-sm">
-              <p className="text-stone-500 text-sm mb-1">在現有投入之外，您現在還需</p>
-              <p className="text-2xl font-bold text-stone-900">
-                每月再投入 <span className="text-teal-700">NT$ {fmt(calc.extraMonthly)}</span>
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">姓名</label>
+              <input
+                type="text" value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="請輸入客戶姓名"
+                className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              />
             </div>
-            <div className="bg-white border border-teal-600/30 rounded-xl p-5 shadow-sm">
-              <p className="text-stone-500 text-sm mb-1">或一次性</p>
-              <p className="text-2xl font-bold text-stone-900">
-                單筆投入 <span className="text-teal-700">NT$ {fmt(calc.lumpSum)}</span>
-              </p>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">性別</label>
+              <div className="grid grid-cols-3 gap-2">
+                {["男", "女", "其他"].map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setClientGender(g)}
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors border ${clientGender === g ? "bg-teal-700 text-white border-teal-700" : "bg-white text-stone-600 border-stone-300"}`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">生日</label>
+              <input
+                type="date" value={clientBirth}
+                onChange={(e) => setClientBirth(e.target.value)}
+                className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-600"
+              />
             </div>
           </div>
         </div>
@@ -397,6 +433,9 @@ export default function App() {
                   <Wallet size={18} className="text-teal-700" /> 財務基礎
                 </h2>
                 <NumberInput label="退休後每月生活費（現值）" value={monthlyExpense} setValue={setMonthlyExpense} suffix="元" step={1000} icon={Coins} />
+                <p className="-mt-3 mb-4 text-xs text-stone-500">
+                  通膨調整後，退休當年實際約需 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> / 月
+                </p>
                 <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
                 <NumberInput label="工作期每月預計投入" value={monthlyContribution} setValue={setMonthlyContribution} suffix="元" step={1000} icon={PiggyBank} />
                 <NumberInput label="預估年化報酬率（退休前）" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
@@ -462,26 +501,46 @@ export default function App() {
           <p className="text-xs text-stone-400 mb-4">四情境壓力測試，觀察資產在不同策略下的長期走勢</p>
           <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
             <h2 className="text-lg font-bold mb-1">資產剩餘價值模擬</h2>
-            <p className="text-xs text-stone-500 mb-4">
+            <p className="text-xs text-stone-500 mb-3">
               四情境對比 · 退休後前兩年強制熊市（-20%／-25%）模擬報酬順序風險
             </p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { key: "perfect", label: "完美預期", color: "#22c55e" },
+                { key: "t0050", label: "0050 真實序列", color: "#3b82f6" },
+                { key: "sp500", label: "S&P 500 真實序列", color: "#ef4444" },
+                { key: "defense", label: "防禦機制啟動", color: "#9333ea" },
+              ].map((ln) => {
+                const on = showLines[ln.key];
+                return (
+                  <button
+                    key={ln.key}
+                    onClick={() => setShowLines((p) => ({ ...p, [ln.key]: !p[ln.key] }))}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "text-white border-transparent" : "bg-white text-stone-500 border-stone-300"}`}
+                    style={on ? { backgroundColor: ln.color } : undefined}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: on ? "#ffffff" : ln.color }} />
+                    {ln.label}
+                  </button>
+                );
+              })}
+            </div>
             <div className="h-[460px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={calc.data} margin={{ top: 40, right: 24, left: 10, bottom: 10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
                   <XAxis dataKey="age" stroke="#78716c"
                     label={{ value: "年齡", position: "insideBottomRight", offset: -5, fill: "#78716c" }} />
-                  <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={60} />
+                  <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={80} />
                   <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]}
                     labelFormatter={(l) => `${l} 歲`}
                     contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
-                  <Legend />
                   <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
                     label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -20 }} />
-                  <Line type="monotone" dataKey="perfect" name="完美預期(Glide Path)" stroke="#22c55e" strokeDasharray="6 4" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="sp500" name="S&P 500 真實序列" stroke="#ef4444" strokeWidth={2.5} dot={false} />
-                  <Line type="monotone" dataKey="t0050" name="0050 真實序列" stroke="#3b82f6" strokeWidth={2.5} dot={false} />
-                  <Line type="monotone" dataKey="defense" name="防禦機制啟動" stroke="#9333ea" strokeWidth={2.5} dot={false} />
+                  {showLines.perfect && <Line type="monotone" dataKey="perfect" name="完美預期(Glide Path)" stroke="#22c55e" strokeDasharray="6 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
+                  {showLines.sp500 && <Line type="monotone" dataKey="sp500" name="S&P 500 真實序列" stroke="#ef4444" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
+                  {showLines.t0050 && <Line type="monotone" dataKey="t0050" name="0050 真實序列" stroke="#3b82f6" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
+                  {showLines.defense && <Line type="monotone" dataKey="defense" name="防禦機制啟動" stroke="#9333ea" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
                 </LineChart>
               </ResponsiveContainer>
             </div>
