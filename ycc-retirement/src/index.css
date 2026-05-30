@@ -10,6 +10,7 @@ html, body, #root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* 滑桿：加高軌道、放大圓點，觸控更好拉 */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -50,6 +51,7 @@ input[type="range"]::-moz-range-track {
   background: #d6d3d1;
 }
 
+/* 移除 number input 上下箭頭，避免 iPad 誤觸 */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -61,15 +63,47 @@ input[type="number"] {
 
 /* ===== 列印專用樣式 ===== */
 @media print {
+  /* 隱藏螢幕專用元素（app頁首、曲線切換鈕、列印按鈕） */
   .no-print { display: none !important; }
+
+  /* 顯示列印專用報表標頭 */
   .print-header { display: block !important; }
+
+  /* 省墨、確保白底黑字 */
   body, #root { background: #ffffff !important; }
+
+  /* 卡片邊框輕量化、避免被分頁從中切斷 */
   .bg-white, [class*="rounded-xl"] {
     box-shadow: none !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
+
+  /* 主容器去除多餘留白，版面更貼合 A4 */
   main { padding: 0 !important; }
+
+  /* 列印時壓縮 section 垂直間距，避免內容溢出到第二頁 */
+  main > section { margin-bottom: 0.6rem !important; }
+  section { padding: 0.9rem !important; }
+
+  /* 整份報告輕微縮放，收進單頁 */
+  main {
+    transform: scale(0.92);
+    transform-origin: top center;
+  }
+
+  /* 圖表列印時降低高度，節省版面（抓固定高度容器） */
+  .print-chart { height: 300px !important; }
+
+  /* 頁尾免責聲明不強制換頁、緊貼內容 */
+  main > p:last-child {
+    margin-top: 0.5rem !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* 連結不顯示網址 */
   a[href]:after { content: "" !important; }
-  @page { margin: 1.2cm; }
+
+  /* 窄邊距爭取版面 */
+  @page { margin: 0.8cm; }
 }

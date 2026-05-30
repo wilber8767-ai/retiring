@@ -100,15 +100,28 @@ export default function Report() {
               </div>
               <div>
                 <p className="text-xs text-stone-500 mb-1">退休資金缺口</p>
-                <p className="text-2xl font-bold text-red-500">{calc.gapAtRetire > 0 ? "-" : ""}{fmtMan(calc.gapAtRetire)}萬</p>
-                <p className="text-xs text-stone-400 mt-1">仍需額外累積</p>
+                <p className={`text-2xl font-bold ${calc.gapAtRetire > 0 ? "text-red-500" : "text-teal-700"}`}>
+                  {calc.gapAtRetire > 0 ? `-${fmtMan(calc.gapAtRetire)}萬` : "無缺口"}
+                </p>
+                <p className="text-xs text-stone-400 mt-1">{calc.gapAtRetire > 0 ? "仍需額外累積" : "現有規劃已足夠"}</p>
               </div>
               <div>
                 <p className="text-xs text-stone-500 mb-1">每月還需多存</p>
-                <p className="text-2xl font-bold text-orange-600">${fmt(calc.extraMonthly)}</p>
+                <p className={`text-2xl font-bold ${calc.extraMonthly > 0 ? "text-orange-600" : "text-teal-700"}`}>
+                  {calc.extraMonthly > 0 ? `$${fmt(calc.extraMonthly)}` : "$0"}
+                </p>
                 <p className="text-xs text-stone-400 mt-1">在現有投入之外</p>
               </div>
             </div>
+
+            {calc.gapAtRetire <= 0 && (
+              <div className="mt-4 flex items-center gap-2 rounded-xl bg-teal-50 border border-teal-200 px-5 py-4">
+                <span className="text-xl">✓</span>
+                <p className="text-sm text-teal-700">
+                  <span className="font-bold">恭喜！</span>依目前規劃，您的退休準備已可支應預估的退休生活需求，無需額外加碼即可達成退休目標。
+                </p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -129,7 +142,7 @@ export default function Report() {
             </div>
           )}
 
-          <div className="h-[420px]">
+          <div className="h-[420px] print-chart">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={calc.data} margin={{ top: 30, right: 24, left: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
