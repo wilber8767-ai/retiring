@@ -10,29 +10,53 @@ html, body, #root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* 滑桿：加高軌道、放大圓點，觸控更好拉 */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  height: 6px;
+  height: 8px;
   border-radius: 9999px;
   background: #d6d3d1;
   outline: none;
+  cursor: pointer;
+  touch-action: none;
 }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   border-radius: 9999px;
   background: #0f766e;
-  cursor: pointer;
-  box-shadow: 0 0 0 3px rgba(15,118,110,0.25);
+  cursor: grab;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.1);
 }
 input[type="range"]::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  border: none;
+  width: 26px;
+  height: 26px;
   border-radius: 9999px;
   background: #0f766e;
-  cursor: pointer;
+  cursor: grab;
+  border: 3px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+input[type="range"]::-moz-range-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: #d6d3d1;
+}
+
+/* 移除 number input 上下箭頭，避免 iPad 誤觸 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
 }

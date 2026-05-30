@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
@@ -31,6 +31,83 @@ const T0050_RETURNS = [
 const fmt = (n) =>
   isFinite(n) ? Math.round(n).toLocaleString("zh-TW") : "—";
 const fmtMan = (n) => (n / 10000).toFixed(0); // 轉萬元
+
+// ===== 可重用輸入元件（定義在 App 外，避免每次 render 重建導致輸入失焦）=====
+function Slider({ label, value, setValue, min, max, icon: Icon }) {
+  return (
+    <div className="mb-4">
+      <div className="flex justify-between items-center mb-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-stone-700">
+          {Icon && <Icon size={16} className="text-teal-700" />}
+          {label}
+        </span>
+        <span className="text-teal-700 font-bold text-lg">{value}</span>
+      </div>
+      <input
+        type="range" min={min} max={max} value={value}
+        onChange={(e) => setValue(Number(e.target.value))}
+        className="w-full h-2 cursor-pointer"
+      />
+      <div className="flex justify-between text-xs text-stone-400 mt-1">
+        <span>{min}</span><span>{max}</span>
+      </div>
+    </div>
+  );
+}
+
+function NumberInput({ label, value, setValue, suffix, step = 1, icon: Icon }) {
+  // 本地字串 state：輸入過程完全不受外部 render 干擾，可暫時為空或負號
+  const [text, setText] = useState(String(value));
+  // 外部值改變時（例如其他連動）才同步顯示
+  useEffect(() => {
+    setText(String(value));
+  }, [value]);
+
+  const commit = (raw) => {
+    const n = Number(raw);
+    if (raw === "" || isNaN(n)) {
+      setValue(0);
+      setText("0");
+    } else {
+      setValue(n);
+      setText(String(n));
+    }
+  };
+
+  return (
+    <div className="mb-4">
+      <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-1">
+        {Icon && <Icon size={16} className="text-teal-700" />}
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          type="number" inputMode="numeric" step={step}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);              // 即時更新本地顯示，不會失焦
+            const n = Number(e.target.value);
+            if (e.target.value !== "" && !isNaN(n)) setValue(n); // 有效數字才連動圖表
+          }}
+          onBlur={(e) => commit(e.target.value)}   // 失焦時清理（空白/非法→0）
+          className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-600"
+        />
+        {suffix && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm pointer-events-none">{suffix}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }) {
+  return (
+    <button onClick={onChange}
+      className={`relative w-12 h-6 rounded-full transition-colors ${checked ? "bg-teal-700" : "bg-stone-300"}`}>
+      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${checked ? "translate-x-6" : ""}`} />
+    </button>
+  );
+}
 
 export default function App() {
   // ===== 狀態 =====
@@ -244,47 +321,6 @@ export default function App() {
   ]);
 
   // ===== 子元件 =====
-  const Slider = ({ label, value, setValue, min, max, icon: Icon }) => (
-    <div className="mb-4">
-      <div className="flex justify-between items-center mb-2">
-        <span className="flex items-center gap-2 text-sm font-medium text-stone-700">
-          {Icon && <Icon size={16} className="text-teal-700" />}
-          {label}
-        </span>
-        <span className="text-teal-700 font-bold text-lg">{value}</span>
-      </div>
-      <input type="range" min={min} max={max} value={value}
-        onChange={(e) => setValue(Number(e.target.value))} className="w-full" />
-      <div className="flex justify-between text-xs text-stone-400 mt-1">
-        <span>{min}</span><span>{max}</span>
-      </div>
-    </div>
-  );
-
-  const NumberInput = ({ label, value, setValue, suffix, step = 1, icon: Icon }) => (
-    <div className="mb-4">
-      <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-1">
-        {Icon && <Icon size={16} className="text-teal-700" />}
-        {label}
-      </label>
-      <div className="relative">
-        <input type="number" value={value} step={step}
-          onChange={(e) => setValue(Number(e.target.value))}
-          className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-2 text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-600" />
-        {suffix && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">{suffix}</span>
-        )}
-      </div>
-    </div>
-  );
-
-  const Toggle = ({ checked, onChange }) => (
-    <button onClick={onChange}
-      className={`relative w-12 h-6 rounded-full transition-colors ${checked ? "bg-teal-700" : "bg-stone-300"}`}>
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${checked ? "translate-x-6" : ""}`} />
-    </button>
-  );
-
   return (
     <div className="min-h-screen bg-stone-100 text-stone-800">
       <header className="border-b border-stone-200 bg-white px-6 py-4 flex items-center gap-3 shadow-sm">
