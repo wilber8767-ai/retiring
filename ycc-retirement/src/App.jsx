@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
@@ -110,6 +111,8 @@ function Toggle({ checked, onChange }) {
 }
 
 export default function App() {
+  const navigate = useNavigate();
+
   // ===== 客戶基本資料（純記錄，不影響計算；生日會連動當前年齡）=====
   const [clientName, setClientName] = useState("");
   const [clientGender, setClientGender] = useState("");
@@ -155,6 +158,13 @@ export default function App() {
     if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
     if (age >= 20 && age <= 65) setCurrentAge(age);
   }, [clientBirth]);
+
+  // 列印前自動顯示全部四條曲線，讓報表完整；列印後還原使用者原本的選擇
+  useEffect(() => {
+    const before = () => setShowLines({ perfect: true, t0050: true, sp500: true, defense: true });
+    window.addEventListener("beforeprint", before);
+    return () => window.removeEventListener("beforeprint", before);
+  }, []);
 
   const calc = useMemo(() => {
     const rPre = annualReturn / 100;   // 退休前報酬
@@ -387,7 +397,7 @@ export default function App() {
   // ===== 子元件 =====
   return (
     <div className="min-h-screen bg-stone-100 text-stone-800">
-      <header className="border-b border-stone-200 bg-white px-6 py-4 flex items-center gap-3 shadow-sm">
+      <header className="no-print border-b border-stone-200 bg-white px-6 py-4 flex items-center gap-3 shadow-sm">
         <div className="w-10 h-10 rounded-lg bg-teal-700 flex items-center justify-center font-black text-white text-sm">退休</div>
         <div>
           <h1 className="text-xl font-bold tracking-tight text-stone-900">退休資產管理系統</h1>
@@ -439,6 +449,24 @@ export default function App() {
       </section>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        {/* 列印專用報表標頭（螢幕隱藏，列印時顯示） */}
+        <div className="print-header" style={{ display: "none" }}>
+          <div className="flex items-center justify-between border-b-2 border-teal-700 pb-4 mb-2">
+            <div>
+              <h1 className="text-2xl font-bold text-stone-900">退休資產壓力測試報告</h1>
+              <p className="text-sm text-stone-500">Retirement Asset Stress Test Report</p>
+            </div>
+            <div className="text-right text-sm text-stone-600">
+              <div>製表日期：{new Date().toLocaleDateString("zh-TW")}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-sm mb-2">
+            <div><span className="text-stone-500">客戶姓名：</span><span className="font-semibold text-stone-900">{clientName || "—"}</span></div>
+            <div><span className="text-stone-500">性別：</span><span className="font-semibold text-stone-900">{clientGender || "—"}</span></div>
+            <div><span className="text-stone-500">生日：</span><span className="font-semibold text-stone-900">{clientBirth || "—"}（{currentAge} 歲）</span></div>
+          </div>
+        </div>
+
         {/* 步驟一：參數設定區（並排卡片） */}
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -547,7 +575,7 @@ export default function App() {
             <p className="text-xs text-stone-500 mb-3">
               四情境對比 · 退休後前兩年強制熊市（-20%／-25%）模擬報酬順序風險
             </p>
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="no-print flex flex-wrap gap-2 mb-4">
               {[
                 { key: "perfect", label: "完美預期", color: "#22c55e" },
                 { key: "t0050", label: "0050 真實序列", color: "#3b82f6" },
@@ -729,8 +757,12 @@ export default function App() {
             </div>
             <div className="flex-1" />
             <button
-              onClick={() => alert("資產壓力測試報告產製功能開發中。\n\n將輸出含壓力測試結果、現金流結構分析與缺口填補計畫之完整診斷報告（PDF）。")}
-              className="mt-4 flex items-center justify-center gap-2 border border-teal-700 text-teal-700 hover:bg-teal-50 font-semibold px-5 py-3 rounded-lg transition-colors"
+              onClick={() => navigate("/report", { state: {
+                client: { clientName, clientGender, clientBirth },
+                params: { currentAge, retireAge, lifeAge, monthlyExpense, initialFund, monthlyContribution, annualReturn, retireReturn, inflation, includePension, monthlyPension, includeMedical, survivalAmount, survivalFreq },
+                calc,
+              } })}
+              className="no-print mt-4 flex items-center justify-center gap-2 border border-teal-700 text-teal-700 hover:bg-teal-50 font-semibold px-5 py-3 rounded-lg transition-colors"
             >
               <FileText size={18} />
               匯出資產壓力測試報告（PDF）
