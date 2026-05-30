@@ -33,8 +33,8 @@ export default function Report() {
   // 現有儲蓄退休終值（已有準備金按退休前報酬複利到退休）
   const initialAtRetire = params.initialFund * Math.pow(1 + params.annualReturn / 100, Math.max(0, params.retireAge - params.currentAge));
 
-  // 退休後第一條會耗盡的線：用「完美預期」破產年齡呈現耗盡警示
-  const ruinAge = calc.ruin.perfect; // null 表示撐到壽命
+  // 耗盡警示：用「純股票」破產年齡（這是會見底、最有警示力的情境）
+  const ruinAge = calc.ruin.sp500; // null 表示撐到壽命
   const yearsShort = ruinAge === null ? 0 : Math.max(0, params.lifeAge - ruinAge);
 
   return (
@@ -131,13 +131,13 @@ export default function Report() {
             <LineChartIcon size={20} className="text-teal-700" />
             <h2 className="text-lg font-bold text-stone-900">未來資產壓力曲線</h2>
           </div>
-          <p className="text-xs text-stone-400 mb-4">完美預期 vs 防禦機制 — 觀察資產長期走勢</p>
+          <p className="text-xs text-stone-400 mb-4">純股票 vs 股票＋保本三層 — 退休提領期的關鍵差異</p>
 
           {ruinAge !== null && (
             <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 mb-4">
               <AlertTriangle size={16} className="text-red-500 shrink-0" />
               <p className="text-sm text-red-600">
-                按目前規劃（完美預期情境），資產將在 <span className="font-bold">{ruinAge} 歲</span> 耗盡，距離壽命 {params.lifeAge} 歲還有 <span className="font-bold">{yearsShort} 年</span> 的資金缺口！
+                若退休後全押股票，遇提領期市場大跌，資產將在 <span className="font-bold">{ruinAge} 歲</span> 耗盡，距離壽命 {params.lifeAge} 歲還有 <span className="font-bold">{yearsShort} 年</span> 的資金缺口！
               </p>
             </div>
           )}
@@ -173,17 +173,17 @@ export default function Report() {
               </thead>
               <tbody>
                 <tr className="border-b border-stone-100">
-                  <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#22c55e" }} />完美預期</span></td>
-                  <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.perfectAtRetire)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-stone-700">
-                    {calc.perfectSpan.reachedLife ? `逾 ${calc.perfectSpan.years} 年（撐至壽命）` : `${calc.perfectSpan.years} 年 ${calc.perfectSpan.months} 個月`}
+                  <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#ef4444" }} />純股票（無保本）</span></td>
+                  <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.sp500AtRetire)}</td>
+                  <td className={`px-4 py-3 text-right font-semibold ${calc.sp500Span.reachedLife ? "text-stone-700" : "text-red-600"}`}>
+                    {calc.sp500Span.reachedLife ? `逾 ${calc.sp500Span.years} 年（撐至壽命）` : `${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月見底`}
                   </td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />防禦機制啟動</span></td>
+                  <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />股票 + 保本三層</span></td>
                   <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.defenseAtRetire)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-stone-700">
-                    {calc.defenseSpan.reachedLife ? `逾 ${calc.defenseSpan.years} 年（撐至壽命）` : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月`}
+                  <td className={`px-4 py-3 text-right font-semibold ${calc.defenseSpan.reachedLife ? "text-teal-700" : "text-red-600"}`}>
+                    {calc.defenseSpan.reachedLife ? `逾 ${calc.defenseSpan.years} 年（撐至壽命）` : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月見底`}
                   </td>
                 </tr>
               </tbody>
