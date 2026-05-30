@@ -311,6 +311,48 @@ export default function App() {
       });
     }
 
+    // ===== 退休快照：退休時資產 + 可支撐年數（與折線圖走勢一致）=====
+    // 退休時資產 = 該線在退休年齡那筆的資產值
+    const retireRow = data.find((d) => d.age === retireAge);
+    const perfectAtRetire = retireRow ? retireRow.perfect : 0;
+    const defenseAtRetire = retireRow ? retireRow.defense : 0;
+
+    // 可支撐年數：從退休年到該線觸底前；最後一年用「殘值/當年淨提領」估算到月
+    const survivalSpan = (lineKey, ruinAge) => {
+      // 退休後逐年掃描該線資產
+      const retiredRows = data.filter((d) => d.age >= retireAge);
+      let fullYears = 0;
+      let months = 0;
+      for (let i = 0; i < retiredRows.length; i++) {
+        const row = retiredRows[i];
+        const ageHere = row.age;
+        const bal = row[lineKey];
+        // 當年淨提領（與迴圈同口徑）
+        const yi = ageHere - currentAge;
+        const expense = monthlyExpense * 12 * Math.pow(1 + inf, yi);
+        const pension = includePension ? monthlyPension * 12 * Math.pow(1 + inf, yi) : 0;
+        const netDraw = Math.max(0, expense - pension);
+        if (bal > 0) {
+          fullYears = ageHere - retireAge + 1;
+        } else {
+          // 此年已歸零：用前一年殘值估算撐到第幾個月
+          const prev = retiredRows[i - 1];
+          if (prev && netDraw > 0) {
+            const prevBal = prev[lineKey];
+            months = Math.max(0, Math.min(11, Math.floor((prevBal / netDraw) * 12)));
+          }
+          fullYears = ageHere - retireAge; // 不含歸零這年
+          break;
+        }
+      }
+      // 若到壽命都沒歸零
+      const reachedLife = ruinAge === null;
+      return { years: fullYears, months, reachedLife };
+    };
+
+    const perfectSpan = survivalSpan("perfect", ruinPerfect);
+    const defenseSpan = survivalSpan("defense", ruinDefense);
+
     // ===== 促結區衍生數值 =====
     // 1) 防禦資產多爭取的安全期年數（防禦線破產 − S&P 500 破產，未破產以壽命計）
     const spRuinAge = ruinSP === null ? lifeAge : ruinSP;
@@ -333,6 +375,7 @@ export default function App() {
       ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
       spRuinAge, defRuinAge, extraSafeYears,
       guaranteedIncome, marketDependent,
+      perfectAtRetire, defenseAtRetire, perfectSpan, defenseSpan,
     };
   }, [
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
@@ -548,6 +591,50 @@ export default function App() {
             <div className="mt-3 text-xs text-stone-500 flex flex-wrap gap-x-4 gap-y-1 justify-center">
               <span>退休當下預估總資產 NT$ {fmt(calc.fundAtRetire)}</span>
               <span>含工作期定期定額終值 NT$ {fmt(calc.contributionFV)}</span>
+            </div>
+
+            {/* 退休快照橫式表格：退休時資產 + 可支撐年數 */}
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-stone-100 text-stone-600">
+                    <th className="text-left font-semibold px-4 py-3 rounded-l-lg">情境</th>
+                    <th className="text-right font-semibold px-4 py-3">退休時資產（{retireAge} 歲）</th>
+                    <th className="text-right font-semibold px-4 py-3 rounded-r-lg">資產可支撐</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-stone-100">
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-2">
+                        <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#22c55e" }} />
+                        完美預期
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.perfectAtRetire)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-stone-700">
+                      {calc.perfectSpan.reachedLife
+                        ? `逾 ${calc.perfectSpan.years} 年（撐至壽命）`
+                        : `${calc.perfectSpan.years} 年 ${calc.perfectSpan.months} 個月`}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-2">
+                        <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />
+                        防禦機制啟動
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.defenseAtRetire)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-stone-700">
+                      {calc.defenseSpan.reachedLife
+                        ? `逾 ${calc.defenseSpan.years} 年（撐至壽命）`
+                        : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月`}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="text-xs text-stone-400 mt-2">※ 可支撐年數依折線圖實際走勢計算，與上方曲線一致</p>
             </div>
           </div>
         </div>
