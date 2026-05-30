@@ -323,9 +323,15 @@ export default function App() {
         </div>
       </section>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* 左欄：輸入控制面板 */}
-        <div className="lg:col-span-3 space-y-6">
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        {/* 步驟一：參數設定區（並排卡片） */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">1</span>
+            <h2 className="text-lg font-bold text-stone-900">參數設定</h2>
+          </div>
+          <p className="text-xs text-stone-400 mb-4">填入您的退休規劃參數，下方曲線與診斷將即時更新</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
           <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
               <Calendar size={18} className="text-teal-700" /> 年齡控制
@@ -405,10 +411,17 @@ export default function App() {
             </div>
             <p className="text-xs text-stone-500 mt-2">開啟時於 75 歲對三條線各強制扣除 NT$ 5,000,000</p>
           </div>
+          </div>
         </div>
+        {/* /參數設定區 */}
 
-        {/* 右欄：圖表 + 解決方案，垂直堆疊 */}
-        <div className="lg:col-span-9 space-y-6">
+        {/* 步驟二：資產曲線 */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">2</span>
+            <h2 className="text-lg font-bold text-stone-900">資產曲線</h2>
+          </div>
+          <p className="text-xs text-stone-400 mb-4">四情境壓力測試，觀察資產在不同策略下的長期走勢</p>
           <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
             <h2 className="text-lg font-bold mb-1">資產剩餘價值模擬</h2>
             <p className="text-xs text-stone-500 mb-4">
@@ -440,14 +453,16 @@ export default function App() {
               <span>含工作期定期定額終值 NT$ {fmt(calc.contributionFV)}</span>
             </div>
           </div>
+        </div>
+        {/* /資產曲線 */}
 
-          {/* 資產壓力測試與解決方案（右欄內，圖表正下方） */}
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <ShieldCheck size={18} className="text-teal-700" />
-              <h2 className="text-lg font-bold text-stone-900">資產壓力測試與解決方案</h2>
-            </div>
-            <p className="text-xs text-stone-400 mb-4">基於上述壓力測試之客觀診斷結果</p>
+        {/* 步驟三：壓力測試與解決方案 */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">3</span>
+            <h2 className="text-lg font-bold text-stone-900">壓力測試與解決方案</h2>
+          </div>
+          <p className="text-xs text-stone-400 mb-4">基於上述壓力測試之客觀診斷結果，制定缺口填補計畫並匯出報表</p>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 1) 壓力測試結果對比 Stress Test Results */}
@@ -538,10 +553,8 @@ export default function App() {
             </button>
           </div>
           </div>
-          {/* /資產壓力測試與解決方案 */}
-          </div>
         </div>
-        {/* /右欄 */}
+        {/* /壓力測試與解決方案 */}
       </main>
 
       <footer className="text-center text-xs text-stone-400 py-6 border-t border-stone-200">
