@@ -333,85 +333,85 @@ export default function App() {
           <p className="text-xs text-stone-400 mb-4">填入您的退休規劃參數，下方曲線與診斷將即時更新</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
             <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Layers size={18} className="text-teal-700" /> 防禦型資產配置
-              </h2>
-              <NumberInput label={survivalFreq === 0 ? "每月領取生存金金額" : "每次領取生存金金額"} value={survivalAmount} setValue={setSurvivalAmount} suffix="元" step={10000} icon={ShieldCheck} />
-              <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
-                <Repeat size={16} className="text-teal-700" /> 領取頻率
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => setSurvivalFreq(0)}
-                  className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 0 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
-                  每月
-                </button>
-                <button
-                  onClick={() => setSurvivalFreq(1)}
-                  className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 1 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
-                  每年
-                </button>
-                <button
-                  onClick={() => setSurvivalFreq(2)}
-                  className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 2 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
-                  每兩年
-                </button>
+              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Calendar size={18} className="text-teal-700" /> 年齡控制
+                </h2>
+                <Slider label="當前年齡" value={currentAge} setValue={setCurrentAge} min={20} max={65} />
+                <Slider label="預計退休年齡" value={retireAge} setValue={setRetireAge} min={50} max={80} />
+                <Slider label="預估壽命" value={lifeAge} setValue={setLifeAge} min={70} max={100} />
               </div>
-              <p className="text-xs text-stone-500 mt-3">
-                {survivalFreq === 0
-                  ? "退休後每月撥入生存金（圖表以年計，等於該年領取 12 次），僅作用於「防禦機制」紫線"
-                  : "退休後依此頻率撥入生存金，僅作用於圖表中的「防禦機制」紫線"}
-              </p>
-            </div>
+              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Landmark size={18} className="text-teal-700" /> 基礎社會保險
+                </h2>
+                <div className="flex items-center justify-between mb-4 p-3 bg-stone-100 rounded-lg">
+                  <span className="flex items-center gap-2 text-sm text-stone-700">
+                    <Landmark size={16} className="text-teal-700" /> 計入勞保／勞退年金
+                  </span>
+                  <Toggle checked={includePension} onChange={() => setIncludePension(!includePension)} />
+                </div>
+                <NumberInput label="每月基礎退休金（勞保/勞退，現值）" value={monthlyPension} setValue={setMonthlyPension} suffix="元" step={1000} icon={Coins} />
+                <p className="text-xs text-stone-500">退休後此筆現金流可抵銷部分通膨調整後生活費</p>
+              </div>
             </div>
             <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Wallet size={18} className="text-teal-700" /> 財務基礎
-              </h2>
-              <NumberInput label="退休後每月生活費（現值）" value={monthlyExpense} setValue={setMonthlyExpense} suffix="元" step={1000} icon={Coins} />
-              <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
-              <NumberInput label="工作期每月預計投入" value={monthlyContribution} setValue={setMonthlyContribution} suffix="元" step={1000} icon={PiggyBank} />
-              <NumberInput label="預估年化報酬率（退休前）" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
-              <NumberInput label="退休後保守報酬率（Glide Path）" value={retireReturn} setValue={setRetireReturn} suffix="%" step={0.1} icon={TrendingUp} />
-              <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
-            </div>
-            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <ShieldCheck size={18} className="text-teal-700" /> 風險與防禦
-              </h2>
-              <div className="flex items-center justify-between p-3 bg-stone-100 rounded-lg">
-                <span className="flex items-center gap-2 text-sm text-stone-700">
-                  <HeartPulse size={16} className="text-red-400" /> 計入晚年醫療與長照負債
-                </span>
-                <Toggle checked={includeMedical} onChange={() => setIncludeMedical(!includeMedical)} />
+              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Wallet size={18} className="text-teal-700" /> 財務基礎
+                </h2>
+                <NumberInput label="退休後每月生活費（現值）" value={monthlyExpense} setValue={setMonthlyExpense} suffix="元" step={1000} icon={Coins} />
+                <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
+                <NumberInput label="工作期每月預計投入" value={monthlyContribution} setValue={setMonthlyContribution} suffix="元" step={1000} icon={PiggyBank} />
+                <NumberInput label="預估年化報酬率（退休前）" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
+                <NumberInput label="退休後保守報酬率（Glide Path）" value={retireReturn} setValue={setRetireReturn} suffix="%" step={0.1} icon={TrendingUp} />
+                <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
               </div>
-              <p className="text-xs text-stone-500 mt-2">開啟時於 75 歲對三條線各強制扣除 NT$ 5,000,000</p>
-            </div>
             </div>
             <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Landmark size={18} className="text-teal-700" /> 基礎社會保險
-              </h2>
-              <div className="flex items-center justify-between mb-4 p-3 bg-stone-100 rounded-lg">
-                <span className="flex items-center gap-2 text-sm text-stone-700">
-                  <Landmark size={16} className="text-teal-700" /> 計入勞保／勞退年金
-                </span>
-                <Toggle checked={includePension} onChange={() => setIncludePension(!includePension)} />
+              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <Layers size={18} className="text-teal-700" /> 防禦型資產配置
+                </h2>
+                <NumberInput label={survivalFreq === 0 ? "每月領取生存金金額" : "每次領取生存金金額"} value={survivalAmount} setValue={setSurvivalAmount} suffix="元" step={10000} icon={ShieldCheck} />
+                <label className="flex items-center gap-2 text-sm font-medium text-stone-700 mb-2">
+                  <Repeat size={16} className="text-teal-700" /> 領取頻率
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setSurvivalFreq(0)}
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 0 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
+                    每月
+                  </button>
+                  <button
+                    onClick={() => setSurvivalFreq(1)}
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 1 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
+                    每年
+                  </button>
+                  <button
+                    onClick={() => setSurvivalFreq(2)}
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors border ${survivalFreq === 2 ? "bg-teal-700 text-white border-teal-700" : "bg-stone-50 text-stone-600 border-stone-300"}`}>
+                    每兩年
+                  </button>
+                </div>
+                <p className="text-xs text-stone-500 mt-3">
+                  {survivalFreq === 0
+                    ? "退休後每月撥入生存金（圖表以年計，等於該年領取 12 次），僅作用於「防禦機制」紫線"
+                    : "退休後依此頻率撥入生存金，僅作用於圖表中的「防禦機制」紫線"}
+                </p>
               </div>
-              <NumberInput label="每月基礎退休金（勞保/勞退，現值）" value={monthlyPension} setValue={setMonthlyPension} suffix="元" step={1000} icon={Coins} />
-              <p className="text-xs text-stone-500">退休後此筆現金流可抵銷部分通膨調整後生活費</p>
-            </div>
-            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Calendar size={18} className="text-teal-700" /> 年齡控制
-              </h2>
-              <Slider label="當前年齡" value={currentAge} setValue={setCurrentAge} min={20} max={65} />
-              <Slider label="預計退休年齡" value={retireAge} setValue={setRetireAge} min={50} max={80} />
-              <Slider label="預估壽命" value={lifeAge} setValue={setLifeAge} min={70} max={100} />
-            </div>
+              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-teal-700" /> 風險與防禦
+                </h2>
+                <div className="flex items-center justify-between p-3 bg-stone-100 rounded-lg">
+                  <span className="flex items-center gap-2 text-sm text-stone-700">
+                    <HeartPulse size={16} className="text-red-400" /> 計入晚年醫療與長照負債
+                  </span>
+                  <Toggle checked={includeMedical} onChange={() => setIncludeMedical(!includeMedical)} />
+                </div>
+                <p className="text-xs text-stone-500 mt-2">開啟時於 75 歲對三條線各強制扣除 NT$ 5,000,000</p>
+              </div>
             </div>
           </div>
         </div>
