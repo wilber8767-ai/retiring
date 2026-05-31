@@ -125,7 +125,8 @@ export default function App() {
 
   const [monthlyExpense, setMonthlyExpense] = useState(50000); // 現值每月生活費
   const [initialFund, setInitialFund] = useState(1000000); // 已有準備金
-  const [monthlyContribution, setMonthlyContribution] = useState(10000); // ★工作期每月投入
+  const [monthlyFixed, setMonthlyFixed] = useState(5000);   // ★每月固定存（0% 不生息）
+  const [monthlyInvest, setMonthlyInvest] = useState(10000); // ★每月定期定額（隨報酬波動）
   const [annualReturn, setAnnualReturn] = useState(6); // 工作期/退休前報酬 %
   const [retireReturn, setRetireReturn] = useState(3); // ★退休後保守報酬率（Glide Path）%
   const [inflation, setInflation] = useState(2.5); // 通膨率 %
@@ -196,16 +197,19 @@ export default function App() {
     // 已有準備金成長到退休年（退休前報酬）
     const initialAtRetire = initialFund * Math.pow(1 + rPre, yearsToRetire);
 
-    // ★工作期定期定額的終值 FV（每月投入，月複利）
+    // ★工作期投入終值：定期定額按月複利成長 + 固定存純累加（0% 不生息）
     const monthlyRate = rPre / 12;
     const months = yearsToRetire * 12;
-    let contributionFV = 0;
+    let investFV = 0;   // 定期定額終值
+    let fixedFV = 0;    // 固定存終值（0%）
     if (months > 0) {
-      contributionFV =
+      investFV =
         monthlyRate === 0
-          ? monthlyContribution * months
-          : monthlyContribution * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
+          ? monthlyInvest * months
+          : monthlyInvest * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
+      fixedFV = monthlyFixed * months;
     }
+    const contributionFV = investFV + fixedFV;
 
     // 退休當下總資產
     const fundAtRetire = initialAtRetire + contributionFV;
@@ -260,7 +264,8 @@ export default function App() {
         ? monthlyPension * 12 * Math.pow(1 + inf, yearIndex)
         : 0;
       const netDrawNow = Math.max(0, expenseNow - pensionNow); // 退休後嚴格淨提領
-      const annualContribution = monthlyContribution * 12;
+      const annualInvest = monthlyInvest * 12;   // 定期定額（隨報酬波動）
+      const annualFixed = monthlyFixed * 12;     // 固定存（0% 不生息，純累加）
 
       // 歷史序列報酬
       const histSP = SP500_RETURNS[yearIndex % SP500_RETURNS.length];
@@ -278,7 +283,7 @@ export default function App() {
         const growth = isRetired ? rPost : rPre;
         balPerfect = balPerfect * (1 + growth);
         if (isRetired) balPerfect -= netDrawNow;
-        else balPerfect += annualContribution;
+        else balPerfect += annualInvest + annualFixed;
         if (includeMedical && age === MEDICAL_AGE) balPerfect -= MEDICAL_DEBT;
         if (balPerfect <= 0) { balPerfect = 0; bankruptPerfect = true; ruinPerfect = age; }
       } else balPerfect = 0;
@@ -287,7 +292,7 @@ export default function App() {
       if (!bankruptSP) {
         balSP = balSP * (1 + rSP);
         if (isRetired) balSP -= netDrawNow;
-        else balSP += annualContribution;
+        else balSP += annualInvest + annualFixed;
         if (includeMedical && age === MEDICAL_AGE) balSP -= MEDICAL_DEBT;
         if (balSP <= 0) { balSP = 0; bankruptSP = true; ruinSP = age; }
       } else balSP = 0;
@@ -296,7 +301,7 @@ export default function App() {
       if (!bankrupt0050) {
         bal0050 = bal0050 * (1 + r0050);
         if (isRetired) bal0050 -= netDrawNow;
-        else bal0050 += annualContribution;
+        else bal0050 += annualInvest + annualFixed;
         if (includeMedical && age === MEDICAL_AGE) bal0050 -= MEDICAL_DEBT;
         if (bal0050 <= 0) { bal0050 = 0; bankrupt0050 = true; ruin0050 = age; }
       } else bal0050 = 0;
@@ -305,7 +310,7 @@ export default function App() {
       if (!bankruptDefense) {
         if (!isRetired) {
           // 退休前：單一資產池，與 S&P 基礎相同累積
-          balDefense = balDefense * (1 + rSP) + annualContribution;
+          balDefense = balDefense * (1 + rSP) + annualInvest + annualFixed;
         } else {
           // 退休那一刻：把累積資產拆成三層（只做一次）
           if (!layersInitialized) {
@@ -359,6 +364,7 @@ export default function App() {
     const retireRow = data.find((d) => d.age === retireAge);
     const perfectAtRetire = retireRow ? retireRow.perfect : 0;
     const defenseAtRetire = retireRow ? retireRow.defense : 0;
+    const sp500AtRetire = retireRow ? retireRow.sp500 : 0;
 
     // 可支撐年數：從退休年到該線觸底前；最後一年用「殘值/當年淨提領」估算到月
     const survivalSpan = (lineKey, ruinAge) => {
@@ -395,6 +401,7 @@ export default function App() {
 
     const perfectSpan = survivalSpan("perfect", ruinPerfect);
     const defenseSpan = survivalSpan("defense", ruinDefense);
+    const sp500Span = survivalSpan("sp500", ruinSP);
 
     // ===== 促結區衍生數值 =====
     // 1) 防禦資產多爭取的安全期年數（防禦線破產 − S&P 500 破產，未破產以壽命計）
@@ -419,11 +426,11 @@ export default function App() {
       ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
       spRuinAge, defRuinAge, extraSafeYears,
       guaranteedIncome, marketDependent,
-      perfectAtRetire, defenseAtRetire, perfectSpan, defenseSpan,
+      perfectAtRetire, defenseAtRetire, sp500AtRetire, perfectSpan, defenseSpan, sp500Span,
     };
   }, [
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
-    monthlyContribution, annualReturn, retireReturn, inflation,
+    monthlyInvest, monthlyFixed, annualReturn, retireReturn, inflation,
     includePension, monthlyPension, includeMedical,
     cashPct, incomePct, dividendRate,
   ]);
@@ -542,7 +549,8 @@ export default function App() {
                   通膨調整後，退休當年實際約需 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> / 月
                 </p>
                 <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
-                <NumberInput label="工作期每月預計投入" value={monthlyContribution} setValue={setMonthlyContribution} suffix="元" step={1000} icon={PiggyBank} />
+                <NumberInput label="工作期每月定期定額（隨市場波動）" value={monthlyInvest} setValue={setMonthlyInvest} suffix="元" step={1000} icon={PiggyBank} />
+                <NumberInput label="工作期每月固定存（0% 不生息）" value={monthlyFixed} setValue={setMonthlyFixed} suffix="元" step={1000} icon={Wallet} />
                 <NumberInput label="預估年化報酬率（退休前）" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
                 <NumberInput label="退休後保守報酬率（Glide Path）" value={retireReturn} setValue={setRetireReturn} suffix="%" step={0.1} icon={TrendingUp} />
                 <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
@@ -659,29 +667,29 @@ export default function App() {
                   <tr className="border-b border-stone-100">
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-2">
-                        <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#22c55e" }} />
-                        完美預期
+                        <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#ef4444" }} />
+                        純股票（無保本）
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.perfectAtRetire)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-stone-700">
-                      {calc.perfectSpan.reachedLife
-                        ? `逾 ${calc.perfectSpan.years} 年（撐至壽命）`
-                        : `${calc.perfectSpan.years} 年 ${calc.perfectSpan.months} 個月`}
+                    <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.sp500AtRetire)}</td>
+                    <td className={`px-4 py-3 text-right font-semibold ${calc.sp500Span.reachedLife ? "text-stone-700" : "text-red-600"}`}>
+                      {calc.sp500Span.reachedLife
+                        ? `逾 ${calc.sp500Span.years} 年（撐至壽命）`
+                        : `${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月見底`}
                     </td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-2">
                         <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />
-                        防禦機制啟動
+                        股票 + 保本三層
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.defenseAtRetire)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-stone-700">
+                    <td className={`px-4 py-3 text-right font-semibold ${calc.defenseSpan.reachedLife ? "text-teal-700" : "text-red-600"}`}>
                       {calc.defenseSpan.reachedLife
                         ? `逾 ${calc.defenseSpan.years} 年（撐至壽命）`
-                        : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月`}
+                        : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月見底`}
                     </td>
                   </tr>
                 </tbody>
@@ -783,7 +791,7 @@ export default function App() {
             <button
               onClick={() => navigate("/report", { state: {
                 client: { clientName, clientGender, clientBirth },
-                params: { currentAge, retireAge, lifeAge, monthlyExpense, initialFund, monthlyContribution, annualReturn, retireReturn, inflation, includePension, monthlyPension, includeMedical, cashPct, incomePct, dividendRate },
+                params: { currentAge, retireAge, lifeAge, monthlyExpense, initialFund, monthlyInvest, monthlyFixed, annualReturn, retireReturn, inflation, includePension, monthlyPension, includeMedical, cashPct, incomePct, dividendRate },
                 calc,
               } })}
               className="no-print mt-4 flex items-center justify-center gap-2 border border-teal-700 text-teal-700 hover:bg-teal-50 font-semibold px-5 py-3 rounded-lg transition-colors"
