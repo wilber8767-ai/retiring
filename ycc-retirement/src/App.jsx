@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
-  PieChart, Pie, Cell,
+  PieChart, Pie, Cell, AreaChart, Area,
 } from "recharts";
 import {
   Wallet, TrendingDown, ShieldCheck, Activity, HeartPulse, Coins, Calendar,
@@ -137,8 +137,14 @@ export default function App() {
 
   const [includeMedical, setIncludeMedical] = useState(true); // 75 歲扣 500 萬
 
-  // 圖表曲線可見性（預設只顯示完美預期，其餘由按鈕開啟）
+  // 圖表曲線可見性（線圖模式用）
   const [showLines, setShowLines] = useState({ perfect: true, t0050: false, sp500: false, defense: false });
+  // 圖表模式：line=線圖, stack=堆疊面積圖
+  const [chartMode, setChartMode] = useState("line");
+  // 堆疊圖情境：stock=純股票, defense=保本三層
+  const [stackScenario, setStackScenario] = useState("defense");
+  // 純股票情境用的標的：sp500 或 t0050
+  const [stockPick, setStockPick] = useState("sp500");
 
   // ★三層防禦配置（退休那刻將資產拆成現金/配息/成長三層；僅作用於防禦機制紫線）
   const [cashPct, setCashPct] = useState(15);       // 現金安全層 %
@@ -249,6 +255,13 @@ export default function App() {
     // 三層（退休那刻才拆分）
     let cashLayer = 0, incomeLayer = 0, growthLayer = 0;
     let layersInitialized = false;
+
+    // 堆疊圖用：累積期分層追蹤（初始資金歸入定期定額池當基底）
+    let accFixed = 0;                 // 固定存累積池（0% 純累加）
+    let accInvest = initialFund;      // 定期定額池（初始資金併入，隨報酬成長）
+    // 純股票情境退休後的單一池（給堆疊圖純股票情境用）
+    let soloStock = initialFund;
+    let soloBankrupt = false;
     const growthPct = Math.max(0, 100 - cashPct - incomePct);
     const divRate = dividendRate / 100;
     let bankruptPerfect = false, bankruptSP = false, bankrupt0050 = false, bankruptDefense = false;
@@ -350,12 +363,53 @@ export default function App() {
         }
       } else balDefense = 0;
 
+      // === 堆疊圖資料計算 ===
+      const rStock = shockReturn !== null ? shockReturn
+        : (stockPick === "t0050" ? hist0050 : histSP);
+
+      // 累積期分層池（退休前才累加；退休後凍結不再投入）
+      if (!isRetired) {
+        accInvest = accInvest * (1 + (stackScenario === "stock" ? rStock : rSP)) + annualInvest;
+        accFixed = accFixed + annualFixed; // 0% 純累加
+      }
+
+      // 純股票情境：退休後單一池運作（提領、熊市、醫療）
+      if (!isRetired) {
+        soloStock = accInvest + accFixed; // 退休前 = 累積總額
+      } else if (!soloBankrupt) {
+        soloStock = soloStock * (1 + rStock) - netDrawNow;
+        if (includeMedical && age === MEDICAL_AGE) soloStock -= MEDICAL_DEBT;
+        if (soloStock <= 0) { soloStock = 0; soloBankrupt = true; }
+      } else soloStock = 0;
+
+      // 堆疊分層輸出值
+      let s_fixed = 0, s_invest = 0, s_cash = 0, s_income = 0, s_growth = 0;
+      if (!isRetired) {
+        // 累積期：固定存 + 定期定額
+        s_fixed = accFixed;
+        s_invest = accInvest;
+      } else if (stackScenario === "stock") {
+        // 純股票退休後：單層（放在 growth 欄呈現）
+        s_growth = soloStock;
+      } else {
+        // 保本三層退休後
+        s_cash = Math.max(0, cashLayer);
+        s_income = Math.max(0, incomeLayer);
+        s_growth = Math.max(0, growthLayer);
+      }
+
       data.push({
         age,
         perfect: Math.round(balPerfect),
         sp500: Math.round(balSP),
         t0050: Math.round(bal0050),
         defense: Math.round(balDefense),
+        // 堆疊分層
+        sFixed: Math.round(s_fixed),
+        sInvest: Math.round(s_invest),
+        sCash: Math.round(s_cash),
+        sIncome: Math.round(s_income),
+        sGrowth: Math.round(s_growth),
       });
     }
 
@@ -433,6 +487,7 @@ export default function App() {
     monthlyInvest, monthlyFixed, annualReturn, retireReturn, inflation,
     includePension, monthlyPension, includeMedical,
     cashPct, incomePct, dividendRate,
+    stackScenario, stockPick,
   ]);
 
   // ===== 子元件 =====
@@ -605,46 +660,125 @@ export default function App() {
           <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
             <h2 className="text-lg font-bold mb-1">資產剩餘價值模擬</h2>
             <p className="text-xs text-stone-500 mb-3">
-              四情境對比 · 退休後前兩年強制熊市（-20%／-25%）模擬報酬順序風險
+              退休後前兩年強制熊市（-20%／-25%）模擬報酬順序風險
             </p>
-            <div className="no-print flex flex-wrap gap-2 mb-4">
+
+            {/* 圖型切換 */}
+            <div className="no-print flex flex-wrap items-center gap-2 mb-3">
+              <span className="text-xs text-stone-400 mr-1">圖型</span>
               {[
-                { key: "perfect", label: "完美預期", color: "#22c55e" },
-                { key: "t0050", label: "0050 真實序列", color: "#3b82f6" },
-                { key: "sp500", label: "S&P 500 真實序列", color: "#ef4444" },
-                { key: "defense", label: "防禦機制啟動", color: "#9333ea" },
-              ].map((ln) => {
-                const on = showLines[ln.key];
-                return (
-                  <button
-                    key={ln.key}
-                    onClick={() => setShowLines((p) => ({ ...p, [ln.key]: !p[ln.key] }))}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "text-white border-transparent" : "bg-white text-stone-500 border-stone-300"}`}
-                    style={on ? { backgroundColor: ln.color } : undefined}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: on ? "#ffffff" : ln.color }} />
-                    {ln.label}
-                  </button>
-                );
-              })}
+                { key: "line", label: "曲線圖" },
+                { key: "stack", label: "堆疊面積圖" },
+              ].map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => setChartMode(m.key)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${chartMode === m.key ? "bg-teal-700 text-white border-teal-700" : "bg-white text-stone-500 border-stone-300"}`}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
+
+            {/* 線圖模式：四條線開關 */}
+            {chartMode === "line" && (
+              <div className="no-print flex flex-wrap gap-2 mb-4">
+                {[
+                  { key: "perfect", label: "完美預期", color: "#22c55e" },
+                  { key: "t0050", label: "0050 真實序列", color: "#3b82f6" },
+                  { key: "sp500", label: "S&P 500 真實序列", color: "#ef4444" },
+                  { key: "defense", label: "防禦機制啟動", color: "#9333ea" },
+                ].map((ln) => {
+                  const on = showLines[ln.key];
+                  return (
+                    <button
+                      key={ln.key}
+                      onClick={() => setShowLines((p) => ({ ...p, [ln.key]: !p[ln.key] }))}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "text-white border-transparent" : "bg-white text-stone-500 border-stone-300"}`}
+                      style={on ? { backgroundColor: ln.color } : undefined}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: on ? "#ffffff" : ln.color }} />
+                      {ln.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 堆疊圖模式：情境 + 標的切換 */}
+            {chartMode === "stack" && (
+              <div className="no-print flex flex-wrap items-center gap-2 mb-4">
+                <span className="text-xs text-stone-400 mr-1">情境</span>
+                {[
+                  { key: "stock", label: "純股票" },
+                  { key: "defense", label: "保本三層" },
+                ].map((sc) => (
+                  <button
+                    key={sc.key}
+                    onClick={() => setStackScenario(sc.key)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${stackScenario === sc.key ? "bg-teal-700 text-white border-teal-700" : "bg-white text-stone-500 border-stone-300"}`}
+                  >
+                    {sc.label}
+                  </button>
+                ))}
+                {stackScenario === "stock" && (
+                  <>
+                    <span className="text-xs text-stone-400 ml-2 mr-1">標的</span>
+                    {[
+                      { key: "sp500", label: "S&P 500" },
+                      { key: "t0050", label: "0050" },
+                    ].map((sp) => (
+                      <button
+                        key={sp.key}
+                        onClick={() => setStockPick(sp.key)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${stockPick === sp.key ? "bg-stone-700 text-white border-stone-700" : "bg-white text-stone-500 border-stone-300"}`}
+                      >
+                        {sp.label}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
             <div className="h-[460px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={calc.data} margin={{ top: 40, right: 24, left: 10, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                  <XAxis dataKey="age" stroke="#78716c"
-                    label={{ value: "年齡", position: "insideBottomRight", offset: -5, fill: "#78716c" }} />
-                  <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={80} />
-                  <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]}
-                    labelFormatter={(l) => `${l} 歲`}
-                    contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
-                  <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
-                    label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -20 }} />
-                  {showLines.perfect && <Line type="monotone" dataKey="perfect" name="完美預期(Glide Path)" stroke="#22c55e" strokeDasharray="6 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
-                  {showLines.sp500 && <Line type="monotone" dataKey="sp500" name="S&P 500 真實序列" stroke="#ef4444" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
-                  {showLines.t0050 && <Line type="monotone" dataKey="t0050" name="0050 真實序列" stroke="#3b82f6" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
-                  {showLines.defense && <Line type="monotone" dataKey="defense" name="防禦機制啟動" stroke="#9333ea" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
-                </LineChart>
+                {chartMode === "line" ? (
+                  <LineChart data={calc.data} margin={{ top: 40, right: 24, left: 10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                    <XAxis dataKey="age" stroke="#78716c"
+                      label={{ value: "年齡", position: "insideBottomRight", offset: -5, fill: "#78716c" }} />
+                    <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={80} />
+                    <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]}
+                      labelFormatter={(l) => `${l} 歲`}
+                      contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
+                    <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
+                      label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -20 }} />
+                    {showLines.perfect && <Line type="monotone" dataKey="perfect" name="完美預期(Glide Path)" stroke="#22c55e" strokeDasharray="6 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
+                    {showLines.sp500 && <Line type="monotone" dataKey="sp500" name="S&P 500 真實序列" stroke="#ef4444" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
+                    {showLines.t0050 && <Line type="monotone" dataKey="t0050" name="0050 真實序列" stroke="#3b82f6" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
+                    {showLines.defense && <Line type="monotone" dataKey="defense" name="防禦機制啟動" stroke="#9333ea" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
+                  </LineChart>
+                ) : (
+                  <AreaChart data={calc.data} margin={{ top: 40, right: 24, left: 10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                    <XAxis dataKey="age" stroke="#78716c"
+                      label={{ value: "年齡", position: "insideBottomRight", offset: -5, fill: "#78716c" }} />
+                    <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={80} />
+                    <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]}
+                      labelFormatter={(l) => `${l} 歲`}
+                      contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
+                    <Legend />
+                    <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
+                      label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -20 }} />
+                    {/* 累積期分層：固定存（底）+ 定期定額 */}
+                    <Area type="monotone" dataKey="sFixed" name="固定存" stackId="1" stroke="#a8a29e" fill="#d6d3d1" isAnimationActive={false} />
+                    <Area type="monotone" dataKey="sInvest" name="定期定額" stackId="1" stroke="#0d9488" fill="#5eead4" isAnimationActive={false} />
+                    {/* 退休期分層：現金 / 配息 / 成長（純股票情境只有成長層有值） */}
+                    <Area type="monotone" dataKey="sCash" name="現金安全層" stackId="1" stroke="#0f766e" fill="#99f6e4" isAnimationActive={false} />
+                    <Area type="monotone" dataKey="sIncome" name="配息收益層" stackId="1" stroke="#ca8a04" fill="#fde68a" isAnimationActive={false} />
+                    <Area type="monotone" dataKey="sGrowth" name={stackScenario === "stock" ? "股票資產" : "成長層"} stackId="1" stroke="#9333ea" fill="#d8b4fe" isAnimationActive={false} />
+                  </AreaChart>
+                )}
               </ResponsiveContainer>
             </div>
 
