@@ -147,6 +147,7 @@ export default function App() {
   const [stockPick, setStockPick] = useState("sp500");
   // 第四步路線B：配息現金流的合理年報酬率（使用者可調）
   const [incomeYieldAssumption, setIncomeYieldAssumption] = useState(4);
+  const [yieldText, setYieldText] = useState("4"); // 報酬率輸入框本地字串（可自由編輯）
 
   // ★三層防禦配置（退休那刻將資產拆成現金/配息/成長三層；僅作用於防禦機制紫線）
   const [cashPct, setCashPct] = useState(15);       // 現金安全層 %
@@ -758,10 +759,23 @@ export default function App() {
                     <label className="block text-xs font-medium text-stone-600 mb-1">你覺得合理的年報酬率？</label>
                     <div className="flex items-center gap-2">
                       <input
-                        type="number" value={incomeYieldAssumption}
-                        onChange={(e) => setIncomeYieldAssumption(Math.max(0.1, Number(e.target.value) || 0.1))}
+                        type="number" inputMode="decimal" step={0.5}
+                        value={yieldText}
+                        onChange={(e) => {
+                          setYieldText(e.target.value);            // 即時更新顯示，可暫時為空
+                          const n = Number(e.target.value);
+                          if (e.target.value !== "" && !isNaN(n) && n > 0) setIncomeYieldAssumption(n);
+                        }}
+                        onBlur={(e) => {
+                          const n = Number(e.target.value);
+                          if (e.target.value === "" || isNaN(n) || n <= 0) {
+                            setIncomeYieldAssumption(4);            // 空白/非法/0 → 回預設 4
+                            setYieldText("4");
+                          } else {
+                            setYieldText(String(n));
+                          }
+                        }}
                         className="w-24 bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-600"
-                        step={0.5}
                       />
                       <span className="text-sm text-stone-500">% / 年</span>
                     </div>
