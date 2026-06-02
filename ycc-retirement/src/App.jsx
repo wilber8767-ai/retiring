@@ -476,7 +476,7 @@ export default function App() {
     const marketDependent = Math.max(0, firstYearAnnual - guaranteedIncome);
 
     // ===== 四步引導流程：兩條路線所需本金 =====
-    const retireYears = Math.max(0, lifeAge - retireAge);
+    // （retireYears 已於前面宣告，此處直接沿用）
     // 路線A：本金純消耗(0%)，生活費逐年通膨成長，領到壽命歸零 → 所需本金 = 逐年生活費總和
     let lumpSumDepletion = 0;
     for (let t = 0; t < retireYears; t++) {
