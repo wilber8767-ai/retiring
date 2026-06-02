@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
-  PieChart, Pie, Cell, AreaChart, Area,
+  PieChart, Pie, Cell,
 } from "recharts";
 import {
   Wallet, TrendingDown, ShieldCheck, Activity, HeartPulse, Coins, Calendar,
@@ -145,6 +145,8 @@ export default function App() {
   const [stackScenario, setStackScenario] = useState("defense");
   // 純股票情境用的標的：sp500 或 t0050
   const [stockPick, setStockPick] = useState("sp500");
+  // 第四步路線B：配息現金流的合理年報酬率（使用者可調）
+  const [incomeYieldAssumption, setIncomeYieldAssumption] = useState(4);
 
   // ★三層防禦配置（退休那刻將資產拆成現金/配息/成長三層；僅作用於防禦機制紫線）
   const [cashPct, setCashPct] = useState(15);       // 現金安全層 %
@@ -473,8 +475,20 @@ export default function App() {
     const guaranteedIncome = firstPension + firstDividend;
     const marketDependent = Math.max(0, firstYearAnnual - guaranteedIncome);
 
+    // ===== 四步引導流程：兩條路線所需本金 =====
+    const retireYears = Math.max(0, lifeAge - retireAge);
+    // 路線A：本金純消耗(0%)，生活費逐年通膨成長，領到壽命歸零 → 所需本金 = 逐年生活費總和
+    let lumpSumDepletion = 0;
+    for (let t = 0; t < retireYears; t++) {
+      lumpSumDepletion += firstYearAnnual * Math.pow(1 + inf, t);
+    }
+    // 路線B：配息現金流(不動本金) → 本金 = 退休首年年生活費 ÷ 年報酬率
+    const incomeYield = incomeYieldAssumption / 100;
+    const lumpSumIncome = incomeYield > 0 ? firstYearAnnual / incomeYield : 0;
+
     return {
       gapAtRetire, extraMonthly, lumpSum, fundAtRetire, contributionFV,
+      retireYears, lumpSumDepletion, lumpSumIncome, incomeYieldAssumption,
       firstYearMonthly,
       data, retireAge,
       ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
@@ -487,7 +501,7 @@ export default function App() {
     monthlyInvest, monthlyFixed, annualReturn, retireReturn, inflation,
     includePension, monthlyPension, includeMedical,
     cashPct, incomePct, dividendRate,
-    stackScenario, stockPick,
+    stackScenario, stockPick, incomeYieldAssumption,
   ]);
 
   // ===== 子元件 =====
@@ -650,189 +664,143 @@ export default function App() {
         </div>
         {/* /參數設定區 */}
 
-        {/* 步驟二：資產曲線 */}
+        {/* 步驟二：退休現金流引導 */}
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">2</span>
-            <h2 className="text-lg font-bold text-stone-900">資產曲線</h2>
+            <h2 className="text-lg font-bold text-stone-900">退休現金流引導</h2>
           </div>
-          <p className="text-xs text-stone-400 mb-4">四情境壓力測試，觀察資產在不同策略下的長期走勢</p>
-          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-            <h2 className="text-lg font-bold mb-1">資產剩餘價值模擬</h2>
-            <p className="text-xs text-stone-500 mb-3">
-              退休後前兩年強制熊市（-20%／-25%）模擬報酬順序風險
-            </p>
+          <p className="text-sm text-stone-500 mb-4 ml-8">四個步驟，帶客戶看懂「退休要準備多少、怎麼準備」</p>
 
-            {/* 圖型切換 */}
-            <div className="no-print flex flex-wrap items-center gap-2 mb-3">
-              <span className="text-xs text-stone-400 mr-1">圖型</span>
-              {[
-                { key: "line", label: "曲線圖" },
-                { key: "stack", label: "堆疊面積圖" },
-              ].map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => setChartMode(m.key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${chartMode === m.key ? "bg-teal-700 text-white border-teal-700" : "bg-white text-stone-500 border-stone-300"}`}
-                >
-                  {m.label}
-                </button>
-              ))}
+          <div className="space-y-5">
+            {/* STEP 1：退休後一個月要多少 */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">1</span>
+                <h3 className="text-base font-bold text-stone-800">退休後，一個月要花多少？</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl p-5 bg-stone-50 border border-stone-200">
+                  <p className="text-sm text-stone-500 mb-1">現在每月生活費（今日幣值）</p>
+                  <p className="text-2xl font-black text-stone-800">NT$ {fmt(monthlyExpense)}</p>
+                </div>
+                <div className="rounded-xl p-5 bg-orange-50 border border-orange-200">
+                  <p className="text-sm text-orange-600 mb-1">退休當年實際需要（通膨後）</p>
+                  <p className="text-2xl font-black text-orange-600">NT$ {fmt(calc.firstYearMonthly)}</p>
+                  <p className="text-xs text-orange-500 mt-1">{Math.max(0, retireAge - currentAge)} 年通膨累積後</p>
+                </div>
+              </div>
             </div>
 
-            {/* 線圖模式：四條線開關 */}
-            {chartMode === "line" && (
-              <div className="no-print flex flex-wrap gap-2 mb-4">
-                {[
-                  { key: "perfect", label: "完美預期", color: "#22c55e" },
-                  { key: "t0050", label: "0050 真實序列", color: "#3b82f6" },
-                  { key: "sp500", label: "S&P 500 真實序列", color: "#ef4444" },
-                  { key: "defense", label: "防禦機制啟動", color: "#9333ea" },
-                ].map((ln) => {
-                  const on = showLines[ln.key];
-                  return (
-                    <button
-                      key={ln.key}
-                      onClick={() => setShowLines((p) => ({ ...p, [ln.key]: !p[ln.key] }))}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${on ? "text-white border-transparent" : "bg-white text-stone-500 border-stone-300"}`}
-                      style={on ? { backgroundColor: ln.color } : undefined}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: on ? "#ffffff" : ln.color }} />
-                      {ln.label}
-                    </button>
-                  );
-                })}
+            {/* STEP 2：為什麼一定要有這筆錢（嵌對比圖） */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">2</span>
+                <h3 className="text-base font-bold text-stone-800">為什麼「一定」要先準備？只靠股票行不行？</h3>
               </div>
-            )}
-
-            {/* 堆疊圖模式：情境 + 標的切換 */}
-            {chartMode === "stack" && (
-              <div className="no-print flex flex-wrap items-center gap-2 mb-4">
-                <span className="text-xs text-stone-400 mr-1">情境</span>
-                {[
-                  { key: "stock", label: "純股票" },
-                  { key: "defense", label: "保本三層" },
-                ].map((sc) => (
-                  <button
-                    key={sc.key}
-                    onClick={() => setStackScenario(sc.key)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${stackScenario === sc.key ? "bg-teal-700 text-white border-teal-700" : "bg-white text-stone-500 border-stone-300"}`}
-                  >
-                    {sc.label}
-                  </button>
-                ))}
-                {stackScenario === "stock" && (
-                  <>
-                    <span className="text-xs text-stone-400 ml-2 mr-1">標的</span>
-                    {[
-                      { key: "sp500", label: "S&P 500" },
-                      { key: "t0050", label: "0050" },
-                    ].map((sp) => (
-                      <button
-                        key={sp.key}
-                        onClick={() => setStockPick(sp.key)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${stockPick === sp.key ? "bg-stone-700 text-white border-stone-700" : "bg-white text-stone-500 border-stone-300"}`}
-                      >
-                        {sp.label}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-            )}
-            <div className="h-[460px]">
-              <ResponsiveContainer width="100%" height="100%">
-                {chartMode === "line" ? (
-                  <LineChart data={calc.data} margin={{ top: 40, right: 24, left: 10, bottom: 10 }}>
+              <p className="text-sm text-stone-600 mb-4 leading-relaxed">
+                退休後若把錢全押股票，遇到提領期市場大跌，會「邊跌邊領」雙重侵蝕本金。下圖模擬退休後前兩年遇上熊市（-20%／-25%）的情況——純股票 vs 加上保本型現金流的差別：
+              </p>
+              <div className="h-[300px] mb-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={calc.data} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                    <XAxis dataKey="age" stroke="#78716c"
-                      label={{ value: "年齡", position: "insideBottomRight", offset: -5, fill: "#78716c" }} />
-                    <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={80} />
-                    <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]}
-                      labelFormatter={(l) => `${l} 歲`}
-                      contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
-                    <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
-                      label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -20 }} />
-                    {showLines.perfect && <Line type="monotone" dataKey="perfect" name="完美預期(Glide Path)" stroke="#22c55e" strokeDasharray="6 4" strokeWidth={2} dot={false} isAnimationActive={false} />}
-                    {showLines.sp500 && <Line type="monotone" dataKey="sp500" name="S&P 500 真實序列" stroke="#ef4444" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
-                    {showLines.t0050 && <Line type="monotone" dataKey="t0050" name="0050 真實序列" stroke="#3b82f6" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
-                    {showLines.defense && <Line type="monotone" dataKey="defense" name="防禦機制啟動" stroke="#9333ea" strokeWidth={2.5} dot={false} isAnimationActive={false} />}
-                  </LineChart>
-                ) : (
-                  <AreaChart data={calc.data} margin={{ top: 40, right: 24, left: 10, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                    <XAxis dataKey="age" stroke="#78716c"
-                      label={{ value: "年齡", position: "insideBottomRight", offset: -5, fill: "#78716c" }} />
-                    <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={80} />
-                    <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]}
-                      labelFormatter={(l) => `${l} 歲`}
+                    <XAxis dataKey="age" stroke="#78716c" />
+                    <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={70} />
+                    <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]} labelFormatter={(l) => `${l} 歲`}
                       contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
                     <Legend />
                     <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
-                      label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -20 }} />
-                    {/* 累積期分層：固定存（底）+ 定期定額 */}
-                    <Area type="monotone" dataKey="sFixed" name="固定存" stackId="1" stroke="#a8a29e" fill="#d6d3d1" isAnimationActive={false} />
-                    <Area type="monotone" dataKey="sInvest" name="定期定額" stackId="1" stroke="#0d9488" fill="#5eead4" isAnimationActive={false} />
-                    {/* 退休期分層：現金 / 配息 / 成長（純股票情境只有成長層有值） */}
-                    <Area type="monotone" dataKey="sCash" name="現金安全層" stackId="1" stroke="#0f766e" fill="#99f6e4" isAnimationActive={false} />
-                    <Area type="monotone" dataKey="sIncome" name="配息收益層" stackId="1" stroke="#ca8a04" fill="#fde68a" isAnimationActive={false} />
-                    <Area type="monotone" dataKey="sGrowth" name={stackScenario === "stock" ? "股票資產" : "成長層"} stackId="1" stroke="#9333ea" fill="#d8b4fe" isAnimationActive={false} />
-                  </AreaChart>
-                )}
-              </ResponsiveContainer>
+                      label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -10 }} />
+                    <Line type="monotone" dataKey="sp500" name="純股票（無保本）" stroke="#ef4444" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="defense" name="股票 + 保本三層" stroke="#9333ea" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+                  <p className="text-xs text-red-500 mb-1">純股票（無保本）</p>
+                  <p className="text-sm font-bold text-stone-800">
+                    {calc.sp500Span.reachedLife ? `撐至壽命` : `${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月見底`}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-teal-50 border border-teal-200 px-4 py-3">
+                  <p className="text-xs text-teal-600 mb-1">股票 + 保本三層</p>
+                  <p className="text-sm font-bold text-stone-800">
+                    {calc.defenseSpan.reachedLife ? `撐至壽命` : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月見底`}
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-stone-400 mt-3">
+                結論：股市報酬無法保證，退休現金流需要一塊「不受市場波動影響」的保本型資產來打底。
+              </p>
             </div>
 
-            <div className="mt-3 text-xs text-stone-500 flex flex-wrap gap-x-4 gap-y-1 justify-center">
-              <span>退休當下預估總資產 NT$ {fmt(calc.fundAtRetire)}</span>
-              <span>含工作期定期定額終值 NT$ {fmt(calc.contributionFV)}</span>
+            {/* STEP 3：兩條準備路線 */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">3</span>
+                <h3 className="text-base font-bold text-stone-800">你需要準備多少？兩條路線</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 路線A：存一筆錢花到老 */}
+                <div className="rounded-xl border border-stone-200 p-5">
+                  <p className="text-sm font-bold text-stone-700 mb-1">路線 A · 存一筆錢，邊領邊花</p>
+                  <p className="text-xs text-stone-400 mb-3">本金不增值，從 {retireAge} 歲領到 {lifeAge} 歲（共 {calc.retireYears} 年）剛好用完</p>
+                  <p className="text-3xl font-black text-stone-800">{fmtMan(calc.lumpSumDepletion)}<span className="text-lg font-bold">萬</span></p>
+                  <p className="text-xs text-stone-400 mt-2">退休時需準備的總金額</p>
+                </div>
+                {/* 路線B：配息現金流 */}
+                <div className="rounded-xl border border-teal-300 bg-teal-50/40 p-5">
+                  <p className="text-sm font-bold text-teal-700 mb-1">路線 B · 靠配息現金流，不動本金</p>
+                  <p className="text-xs text-stone-400 mb-3">本金放著領配息，永遠不用動本金</p>
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-stone-600 mb-1">你覺得合理的年報酬率？</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number" value={incomeYieldAssumption}
+                        onChange={(e) => setIncomeYieldAssumption(Math.max(0.1, Number(e.target.value) || 0.1))}
+                        className="w-24 bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-600"
+                        step={0.5}
+                      />
+                      <span className="text-sm text-stone-500">% / 年</span>
+                    </div>
+                  </div>
+                  <p className="text-3xl font-black text-teal-700">{fmtMan(calc.lumpSumIncome)}<span className="text-lg font-bold">萬</span></p>
+                  <p className="text-xs text-stone-400 mt-2">需準備的本金（{incomeYieldAssumption}% 配息可支應退休首年生活費）</p>
+                </div>
+              </div>
+              <p className="text-xs text-stone-400 mt-3">
+                註：兩條路線皆以退休首年（通膨調整後）全額生活費試算，未扣除勞保年金，屬保守估計。
+              </p>
             </div>
 
-            {/* 退休快照橫式表格：退休時資產 + 可支撐年數 */}
-            <div className="mt-5 overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-stone-100 text-stone-600">
-                    <th className="text-left font-semibold px-4 py-3 rounded-l-lg">情境</th>
-                    <th className="text-right font-semibold px-4 py-3">退休時資產（{retireAge} 歲）</th>
-                    <th className="text-right font-semibold px-4 py-3 rounded-r-lg">資產可支撐</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-stone-100">
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-2">
-                        <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#ef4444" }} />
-                        純股票（無保本）
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.sp500AtRetire)}</td>
-                    <td className={`px-4 py-3 text-right font-semibold ${calc.sp500Span.reachedLife ? "text-stone-700" : "text-red-600"}`}>
-                      {calc.sp500Span.reachedLife
-                        ? `逾 ${calc.sp500Span.years} 年（撐至壽命）`
-                        : `${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月見底`}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3">
-                      <span className="flex items-center gap-2">
-                        <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />
-                        股票 + 保本三層
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.defenseAtRetire)}</td>
-                    <td className={`px-4 py-3 text-right font-semibold ${calc.defenseSpan.reachedLife ? "text-teal-700" : "text-red-600"}`}>
-                      {calc.defenseSpan.reachedLife
-                        ? `逾 ${calc.defenseSpan.years} 年（撐至壽命）`
-                        : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月見底`}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              <p className="text-xs text-stone-400 mt-2">※ 可支撐年數依折線圖實際走勢計算，與上方曲線一致</p>
+            {/* STEP 4：解決方案結論 */}
+            <div className="bg-gradient-to-br from-teal-700 to-teal-800 rounded-xl p-6 text-white shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 text-white text-sm font-bold">4</span>
+                <h3 className="text-base font-bold">你的退休解決方案</h3>
+              </div>
+              <p className="text-sm text-teal-50 leading-relaxed mb-4">
+                退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
+                若選擇靠配息現金流（路線 B），在 {incomeYieldAssumption}% 年報酬率下，
+                需準備本金 <span className="font-bold text-white">{fmtMan(calc.lumpSumIncome)} 萬</span>；
+                這筆本金能持續產生現金流、不必擔心市場大跌侵蝕老本。
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
+                  <p className="text-xs text-teal-100 mb-1">每月需準備現金流</p>
+                  <p className="text-xl font-bold">NT$ {fmt(calc.firstYearMonthly)}</p>
+                </div>
+                <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
+                  <p className="text-xs text-teal-100 mb-1">配息路線所需本金</p>
+                  <p className="text-xl font-bold">{fmtMan(calc.lumpSumIncome)} 萬</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        {/* /資產曲線 */}
+        {/* /退休現金流引導 */}
 
         {/* 步驟三：壓力測試與解決方案 */}
         <div>
