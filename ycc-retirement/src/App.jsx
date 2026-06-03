@@ -128,6 +128,8 @@ export default function App() {
   const [incomeYieldAssumption, setIncomeYieldAssumption] = useState(4);
   const [yieldText, setYieldText] = useState("4"); // 報酬率輸入框本地字串（可自由編輯）
   const [selectedPlan, setSelectedPlan] = useState("B"); // 選中的方案：A=存一筆 / B=配息現金流
+  const [needAnswer, setNeedAnswer] = useState(null); // 第二步提問：need=一定需要 / maybe=可有可無
+  const [delayYears, setDelayYears] = useState(10); // 拖延成本：晚幾年才開始準備
 
   const [dividendRate, setDividendRate] = useState(4); // 配息保本：年配息率 %
 
@@ -144,13 +146,6 @@ export default function App() {
     if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--;
     if (age >= 20 && age <= 65) setCurrentAge(age);
   }, [clientBirth]);
-
-  // 列印前自動顯示全部四條曲線，讓報表完整；列印後還原使用者原本的選擇
-  useEffect(() => {
-    const before = () => setShowLines({ perfect: true, t0050: true, sp500: true, defense: true });
-    window.addEventListener("beforeprint", before);
-    return () => window.removeEventListener("beforeprint", before);
-  }, []);
 
   const calc = useMemo(() => {
     const rPre = annualReturn / 100;   // 報酬率（退休前後一致）
@@ -352,9 +347,25 @@ export default function App() {
     const incomeYield = incomeYieldAssumption / 100;
     const lumpSumIncome = incomeYield > 0 ? firstYearAnnual / incomeYield : 0;
 
+    // ===== 拖延成本：達成目標金額，現在開始 vs 拖 N 年開始，每月各要存多少 =====
+    // 目標金額 = 選中方案所需（扣掉已有準備金成長後的缺口），用 rPre 月複利反推 PMT
+    const targetAmount = selectedPlan === "A" ? lumpSumDepletion : lumpSumIncome;
+    const gapToFill = Math.max(0, targetAmount - initialAtRetire);
+    const mRate = rPre / 12;
+    const pmtFor = (years) => {
+      const n = years * 12;
+      if (n <= 0) return gapToFill; // 沒時間了，等於要一次拿出來
+      if (mRate === 0) return gapToFill / n;
+      return gapToFill * mRate / (Math.pow(1 + mRate, n) - 1);
+    };
+    const monthlyNow = pmtFor(yearsToRetire);
+    const monthlyDelayed = pmtFor(Math.max(0, yearsToRetire - delayYears));
+    const monthlyExtra = Math.max(0, monthlyDelayed - monthlyNow);
+
     return {
       gapAtRetire, extraMonthly, lumpSum, fundAtRetire, contributionFV,
       retireYears, lumpSumDepletion, lumpSumIncome, incomeYieldAssumption,
+      monthlyNow, monthlyDelayed, monthlyExtra, targetAmount,
       firstYearMonthly,
       data, retireAge,
       ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
@@ -365,7 +376,7 @@ export default function App() {
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
     monthlyInvest, monthlyFixed, annualReturn, inflation,
     dividendRate,
-    incomeYieldAssumption,
+    incomeYieldAssumption, selectedPlan, delayYears,
   ]);
 
   // ===== 子元件 =====
@@ -518,44 +529,45 @@ export default function App() {
               </div>
             </div>
 
-            {/* STEP 2：為什麼一定要有這筆錢（嵌對比圖） */}
+            {/* STEP 2：提問互動 — 確立需求 */}
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">2</span>
-                <h3 className="text-base font-bold text-stone-800">為什麼「一定」要先準備？只靠股票行不行？</h3>
+                <h3 className="text-base font-bold text-stone-800">退休後這筆生活費，對您來說是？</h3>
               </div>
-              <p className="text-sm text-stone-600 mb-5 leading-relaxed">
-                退休後若把錢全押股票，遇到提領期市場大跌，會「邊跌邊領」雙重侵蝕本金。模擬退休後前兩年遇上熊市（-20%／-25%）的情況，兩種做法差別很大：
+              <p className="text-sm text-stone-600 mb-4 leading-relaxed">
+                退休後每月需要 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> 維持生活。請先想想：這筆錢對您而言是必需，還是可有可無？
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 純股票 */}
-                <div className="rounded-xl border-2 border-red-200 bg-red-50/60 p-6 text-center">
-                  <p className="text-sm font-bold text-red-500 mb-2">純股票（無保本）</p>
-                  <p className="text-3xl font-black text-red-600 mb-1">
-                    {calc.sp500Span.reachedLife ? "撐至壽命" : `${calc.sp500Span.years} 歲後見底`}
-                  </p>
-                  <p className="text-xs text-stone-500">
-                    {calc.sp500Span.reachedLife
-                      ? "此情境下勉強撐住，但毫無緩衝"
-                      : `退休後僅 ${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月，資產就被掏空`}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNeedAnswer("need")}
+                  className={`py-4 rounded-xl border-2 font-bold transition-all ${needAnswer === "need" ? "border-teal-600 bg-teal-600 text-white shadow-md" : "border-stone-300 bg-white text-stone-700 hover:border-teal-400"}`}
+                >
+                  一定需要
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNeedAnswer("maybe")}
+                  className={`py-4 rounded-xl border-2 font-bold transition-all ${needAnswer === "maybe" ? "border-stone-500 bg-stone-500 text-white shadow-md" : "border-stone-300 bg-white text-stone-700 hover:border-stone-400"}`}
+                >
+                  可有可無
+                </button>
+              </div>
+              {needAnswer === "need" && (
+                <div className="mt-4 rounded-xl bg-teal-50 border border-teal-200 px-5 py-4">
+                  <p className="text-sm text-teal-800 leading-relaxed">
+                    <span className="font-bold">沒錯，這是退休生活的底線。</span>既然這筆錢一定要有，關鍵就不是「要不要準備」，而是「現在就開始，還是等以後」——越早開始，每月負擔越輕。我們往下看要準備多少。
                   </p>
                 </div>
-                {/* 配息保本 */}
-                <div className="rounded-xl border-2 border-teal-300 bg-teal-50/60 p-6 text-center">
-                  <p className="text-sm font-bold text-teal-700 mb-2">股票 + 配息保本</p>
-                  <p className="text-3xl font-black text-teal-700 mb-1">
-                    {calc.defenseSpan.reachedLife ? "撐至壽命" : `${calc.defenseSpan.years} 歲後見底`}
-                  </p>
-                  <p className="text-xs text-stone-500">
-                    {calc.defenseSpan.reachedLife
-                      ? "配息穩定支應生活費，本金安然度過大跌"
-                      : `撐 ${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月，仍明顯優於純股票`}
+              )}
+              {needAnswer === "maybe" && (
+                <div className="mt-4 rounded-xl bg-stone-100 border border-stone-200 px-5 py-4">
+                  <p className="text-sm text-stone-700 leading-relaxed">
+                    可以理解。不過退休後沒有薪水，這筆生活費是每個月都會發生的固定支出——如果不靠自己準備，屆時要靠誰？不妨先看看完整準備的金額，再決定如何取捨。
                   </p>
                 </div>
-              </div>
-              <p className="text-sm text-stone-500 mt-5 leading-relaxed">
-                <span className="font-semibold text-stone-700">關鍵差別：</span>保本型資產（配息基金／儲蓄險／年金）每年產生穩定配息，退休後優先用配息過日子，就算股市大跌也不必賤賣股票，讓本金有時間回升——這正是對抗「報酬順序風險」的核心。
-              </p>
+              )}
             </div>
 
             {/* STEP 3：兩條準備路線 */}
@@ -622,6 +634,47 @@ export default function App() {
               <p className="text-xs text-stone-400 mt-3">
                 註：兩條路線皆以退休首年（通膨調整後）全額生活費試算，屬保守估計。
               </p>
+            </div>
+
+            {/* STEP 3.5：拖延成本 */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 text-sm font-bold">!</span>
+                <h3 className="text-base font-bold text-stone-800">越晚開始，負擔越重</h3>
+              </div>
+              <p className="text-sm text-stone-600 mb-4 leading-relaxed">
+                同樣的目標金額（{fmtMan(calc.targetAmount)} 萬），現在就開始準備，跟拖延之後才開始，每月要存的錢差很多：
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <span className="text-xs text-stone-400 mr-1">假設拖延</span>
+                {[5, 10, 15].map((y) => (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => setDelayYears(y)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${delayYears === y ? "bg-orange-500 text-white border-orange-500" : "bg-white text-stone-500 border-stone-300"}`}
+                  >
+                    {y} 年
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5">
+                  <p className="text-sm text-teal-700 mb-1">現在就開始</p>
+                  <p className="text-2xl font-black text-teal-700">NT$ {fmt(calc.monthlyNow)}<span className="text-sm font-bold"> / 月</span></p>
+                  <p className="text-xs text-stone-400 mt-1">距退休還有 {Math.max(0, retireAge - currentAge)} 年</p>
+                </div>
+                <div className="rounded-xl border-2 border-orange-300 bg-orange-50/60 p-5">
+                  <p className="text-sm text-orange-600 mb-1">拖延 {delayYears} 年才開始</p>
+                  <p className="text-2xl font-black text-orange-600">NT$ {fmt(calc.monthlyDelayed)}<span className="text-sm font-bold"> / 月</span></p>
+                  <p className="text-xs text-orange-500 mt-1">只剩 {Math.max(0, retireAge - currentAge - delayYears)} 年可準備</p>
+                </div>
+              </div>
+              <div className="mt-4 rounded-lg bg-orange-50 border border-orange-200 px-5 py-3">
+                <p className="text-sm text-orange-700">
+                  拖延 {delayYears} 年，每月得多存 <span className="font-bold">NT$ {fmt(calc.monthlyExtra)}</span>——時間就是您最大的本錢，越早開始越輕鬆。
+                </p>
+              </div>
             </div>
 
             {/* STEP 4：解決方案結論 */}
