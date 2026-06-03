@@ -1,12 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ReferenceLine,
-} from "recharts";
-import {
   Wallet, TrendingDown, Activity, Coins, Calendar,
-  PiggyBank, TrendingUp, Layers, UserRound,
+  PiggyBank, TrendingUp, UserRound,
 } from "lucide-react";
 
 // ===== 歷史報酬序列（價格報酬，不含配息）=====
@@ -128,24 +124,12 @@ export default function App() {
   const [annualReturn, setAnnualReturn] = useState(6); // 工作期/退休前報酬 %
   const [inflation, setInflation] = useState(2.5); // 通膨率 %
 
-  // 圖表曲線可見性（線圖模式用）
-  const [showLines, setShowLines] = useState({ perfect: true, t0050: false, sp500: false, defense: false });
-  // 圖表模式：line=線圖, stack=堆疊面積圖
-  const [chartMode, setChartMode] = useState("line");
-  // 堆疊圖情境：stock=純股票, defense=保本三層
-  const [stackScenario, setStackScenario] = useState("defense");
-  // 純股票情境用的標的：sp500 或 t0050
-  const [stockPick, setStockPick] = useState("sp500");
   // 第四步路線B：配息現金流的合理年報酬率（使用者可調）
   const [incomeYieldAssumption, setIncomeYieldAssumption] = useState(4);
   const [yieldText, setYieldText] = useState("4"); // 報酬率輸入框本地字串（可自由編輯）
   const [selectedPlan, setSelectedPlan] = useState("B"); // 選中的方案：A=存一筆 / B=配息現金流
 
-  // ★三層防禦配置（退休那刻將資產拆成現金/配息/成長三層；僅作用於防禦機制紫線）
-  const [cashPct, setCashPct] = useState(15);       // 現金安全層 %
-  const [incomePct, setIncomePct] = useState(45);   // 配息收益層 %
-  // 成長層 % = 100 - cashPct - incomePct（自動計算）
-  const [dividendRate, setDividendRate] = useState(4); // 配息層年配息率 %
+  const [dividendRate, setDividendRate] = useState(4); // 配息保本：年配息率 %
 
 
   // ===== 核心運算 =====
@@ -230,18 +214,8 @@ export default function App() {
     let balPerfect = initialFund;
     let balSP = initialFund;
     let bal0050 = initialFund;
-    let balDefense = initialFund; // ★紫線：退休前單一資產池
-    // 三層（退休那刻才拆分）
-    let cashLayer = 0, incomeLayer = 0, growthLayer = 0;
-    let layersInitialized = false;
+    let balDefense = initialFund; // ★紫線：配息保本（退休後靠配息撐、本金隨市場波動）
 
-    // 堆疊圖用：累積期分層追蹤（初始資金歸入定期定額池當基底）
-    let accFixed = 0;                 // 固定存累積池（0% 純累加）
-    let accInvest = initialFund;      // 定期定額池（初始資金併入，隨報酬成長）
-    // 純股票情境退休後的單一池（給堆疊圖純股票情境用）
-    let soloStock = initialFund;
-    let soloBankrupt = false;
-    const growthPct = Math.max(0, 100 - cashPct - incomePct);
     const divRate = dividendRate / 100;
     let bankruptPerfect = false, bankruptSP = false, bankrupt0050 = false, bankruptDefense = false;
     let ruinPerfect = null, ruinSP = null, ruin0050 = null, ruinDefense = null;
@@ -291,77 +265,21 @@ export default function App() {
         if (bal0050 <= 0) { bal0050 = 0; bankrupt0050 = true; ruin0050 = age; }
       } else bal0050 = 0;
 
-      // ★紫線：防禦機制（三層架構）
+      // ★紫線：配息保本（退休前同股票累積；退休後先用配息 cover，不足才動本金）
       if (!bankruptDefense) {
         if (!isRetired) {
-          // 退休前：單一資產池，與 S&P 基礎相同累積
           balDefense = balDefense * (1 + rSP) + annualInvest + annualFixed;
         } else {
-          // 退休那一刻：把累積資產拆成三層（只做一次）
-          if (!layersInitialized) {
-            cashLayer = balDefense * (cashPct / 100);
-            incomeLayer = balDefense * (incomePct / 100);
-            growthLayer = balDefense * (growthPct / 100);
-            layersInitialized = true;
-          }
-          // 成長層：跟著市場波動（含退休後前兩年熊市）
-          growthLayer = growthLayer * (1 + rSP);
-          // 配息層：本金不變，產生年配息現金流
-          const dividendIncome = incomeLayer * divRate;
-          // 當年需從資產提領（全額生活費）
-          let need = netDrawNow;
-          // 1) 先用配息收益
-          need -= dividendIncome;
-          // 2) 不足從現金層提領
-          if (need > 0) {
-            const fromCash = Math.min(cashLayer, need);
-            cashLayer -= fromCash;
-            need -= fromCash;
-          }
-          // 3) 現金層空了，動用成長層
-          if (need > 0) {
-            growthLayer -= need;
-            need = 0;
-          }
-          if (growthLayer < 0) growthLayer = 0;
-          balDefense = cashLayer + incomeLayer + growthLayer;
+          // 本金隨市場波動
+          balDefense = balDefense * (1 + rSP);
+          // 當年配息（資產 × 配息率）先支應生活費
+          const dividendIncome = balDefense * divRate;
+          let need = netDrawNow - dividendIncome;
+          // 配息不足的部分才從本金提領（配息足夠則本金不減反增）
+          if (need > 0) balDefense -= need;
           if (balDefense <= 0) { balDefense = 0; bankruptDefense = true; ruinDefense = age; }
         }
       } else balDefense = 0;
-
-      // === 堆疊圖資料計算 ===
-      const rStock = shockReturn !== null ? shockReturn
-        : (stockPick === "t0050" ? hist0050 : histSP);
-
-      // 累積期分層池（退休前才累加；退休後凍結不再投入）
-      if (!isRetired) {
-        accInvest = accInvest * (1 + (stackScenario === "stock" ? rStock : rSP)) + annualInvest;
-        accFixed = accFixed + annualFixed; // 0% 純累加
-      }
-
-      // 純股票情境：退休後單一池運作（提領、熊市、醫療）
-      if (!isRetired) {
-        soloStock = accInvest + accFixed; // 退休前 = 累積總額
-      } else if (!soloBankrupt) {
-        soloStock = soloStock * (1 + rStock) - netDrawNow;
-        if (soloStock <= 0) { soloStock = 0; soloBankrupt = true; }
-      } else soloStock = 0;
-
-      // 堆疊分層輸出值
-      let s_fixed = 0, s_invest = 0, s_cash = 0, s_income = 0, s_growth = 0;
-      if (!isRetired) {
-        // 累積期：固定存 + 定期定額
-        s_fixed = accFixed;
-        s_invest = accInvest;
-      } else if (stackScenario === "stock") {
-        // 純股票退休後：單層（放在 growth 欄呈現）
-        s_growth = soloStock;
-      } else {
-        // 保本三層退休後
-        s_cash = Math.max(0, cashLayer);
-        s_income = Math.max(0, incomeLayer);
-        s_growth = Math.max(0, growthLayer);
-      }
 
       data.push({
         age,
@@ -369,12 +287,6 @@ export default function App() {
         sp500: Math.round(balSP),
         t0050: Math.round(bal0050),
         defense: Math.round(balDefense),
-        // 堆疊分層
-        sFixed: Math.round(s_fixed),
-        sInvest: Math.round(s_invest),
-        sCash: Math.round(s_cash),
-        sIncome: Math.round(s_income),
-        sGrowth: Math.round(s_growth),
       });
     }
 
@@ -452,8 +364,8 @@ export default function App() {
   }, [
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
     monthlyInvest, monthlyFixed, annualReturn, inflation,
-    cashPct, incomePct, dividendRate,
-    stackScenario, stockPick, incomeYieldAssumption,
+    dividendRate,
+    incomeYieldAssumption,
   ]);
 
   // ===== 子元件 =====
@@ -563,27 +475,16 @@ export default function App() {
               <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
             </div>
 
-            {/* 第三欄：三層配置 */}
+            {/* 第三欄：配息保本設定 */}
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Layers size={18} className="text-teal-700" /> 退休資產三層配置
+                <TrendingUp size={18} className="text-teal-700" /> 配息保本設定
               </h2>
-              <p className="text-xs text-stone-500 mb-4">退休那一刻將資產拆成三層，用於「股票＋保本三層」情境</p>
-              <NumberInput label="現金安全層比例" value={cashPct} setValue={setCashPct} suffix="%" step={1} icon={Wallet} />
-              <NumberInput label="配息收益層比例" value={incomePct} setValue={setIncomePct} suffix="%" step={1} icon={Coins} />
-              <div className="mb-4 flex items-center justify-between rounded-lg bg-stone-100 px-3 py-2">
-                <span className="text-sm text-stone-600">成長層比例（自動）</span>
-                <span className={`font-bold ${(100 - cashPct - incomePct) < 0 ? "text-red-500" : "text-teal-700"}`}>
-                  {Math.max(0, 100 - cashPct - incomePct)}%
-                </span>
-              </div>
-              <NumberInput label="配息層年配息率" value={dividendRate} setValue={setDividendRate} suffix="%" step={0.1} icon={TrendingUp} />
-              <p className="text-xs text-stone-500">
-                現金層用完不補；配息層本金不變、每年產生配息；成長層續留市場波動。提領順序：配息 → 現金層 → 成長層。
+              <p className="text-xs text-stone-500 mb-4">退休後保本型資產（配息基金／儲蓄險／年金）的年配息率</p>
+              <NumberInput label="年配息率" value={dividendRate} setValue={setDividendRate} suffix="%" step={0.1} icon={TrendingUp} />
+              <p className="text-xs text-stone-500 leading-relaxed">
+                退休後優先用配息支應生活費，配息足夠時本金不減；配息不足才動用本金。配息率越高，本金越能長久保留、對抗市場大跌。
               </p>
-              {(100 - cashPct - incomePct) < 0 && (
-                <p className="text-xs text-red-500 mt-2">⚠ 現金層 + 配息層超過 100%，請調整比例</p>
-              )}
             </div>
           </div>
         </div>
@@ -623,41 +524,37 @@ export default function App() {
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">2</span>
                 <h3 className="text-base font-bold text-stone-800">為什麼「一定」要先準備？只靠股票行不行？</h3>
               </div>
-              <p className="text-sm text-stone-600 mb-4 leading-relaxed">
-                退休後若把錢全押股票，遇到提領期市場大跌，會「邊跌邊領」雙重侵蝕本金。下圖模擬退休後前兩年遇上熊市（-20%／-25%）的情況——純股票 vs 加上保本型現金流的差別：
+              <p className="text-sm text-stone-600 mb-5 leading-relaxed">
+                退休後若把錢全押股票，遇到提領期市場大跌，會「邊跌邊領」雙重侵蝕本金。模擬退休後前兩年遇上熊市（-20%／-25%）的情況，兩種做法差別很大：
               </p>
-              <div className="h-[300px] mb-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={calc.data} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                    <XAxis dataKey="age" stroke="#78716c" />
-                    <YAxis stroke="#78716c" tickFormatter={(v) => `${fmtMan(v)}萬`} width={70} />
-                    <Tooltip formatter={(v, name) => [`NT$ ${fmt(v)}`, name]} labelFormatter={(l) => `${l} 歲`}
-                      contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
-                    <Legend />
-                    <ReferenceLine x={calc.retireAge} stroke="#0f766e" strokeDasharray="4 4"
-                      label={{ value: "退休", fill: "#0f766e", position: "insideTop", fontSize: 12, dy: -10 }} />
-                    <Line type="monotone" dataKey="sp500" name="純股票（無保本）" stroke="#ef4444" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                    <Line type="monotone" dataKey="defense" name="股票 + 保本三層" stroke="#9333ea" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-                  <p className="text-xs text-red-500 mb-1">純股票（無保本）</p>
-                  <p className="text-sm font-bold text-stone-800">
-                    {calc.sp500Span.reachedLife ? `撐至壽命` : `${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月見底`}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 純股票 */}
+                <div className="rounded-xl border-2 border-red-200 bg-red-50/60 p-6 text-center">
+                  <p className="text-sm font-bold text-red-500 mb-2">純股票（無保本）</p>
+                  <p className="text-3xl font-black text-red-600 mb-1">
+                    {calc.sp500Span.reachedLife ? "撐至壽命" : `${calc.sp500Span.years} 歲後見底`}
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    {calc.sp500Span.reachedLife
+                      ? "此情境下勉強撐住，但毫無緩衝"
+                      : `退休後僅 ${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月，資產就被掏空`}
                   </p>
                 </div>
-                <div className="rounded-lg bg-teal-50 border border-teal-200 px-4 py-3">
-                  <p className="text-xs text-teal-600 mb-1">股票 + 保本三層</p>
-                  <p className="text-sm font-bold text-stone-800">
-                    {calc.defenseSpan.reachedLife ? `撐至壽命` : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月見底`}
+                {/* 配息保本 */}
+                <div className="rounded-xl border-2 border-teal-300 bg-teal-50/60 p-6 text-center">
+                  <p className="text-sm font-bold text-teal-700 mb-2">股票 + 配息保本</p>
+                  <p className="text-3xl font-black text-teal-700 mb-1">
+                    {calc.defenseSpan.reachedLife ? "撐至壽命" : `${calc.defenseSpan.years} 歲後見底`}
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    {calc.defenseSpan.reachedLife
+                      ? "配息穩定支應生活費，本金安然度過大跌"
+                      : `撐 ${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月，仍明顯優於純股票`}
                   </p>
                 </div>
               </div>
-              <p className="text-xs text-stone-400 mt-3">
-                結論：股市報酬無法保證，退休現金流需要一塊「不受市場波動影響」的保本型資產來打底。
+              <p className="text-sm text-stone-500 mt-5 leading-relaxed">
+                <span className="font-semibold text-stone-700">關鍵差別：</span>保本型資產（配息基金／儲蓄險／年金）每年產生穩定配息，退休後優先用配息過日子，就算股市大跌也不必賤賣股票，讓本金有時間回升——這正是對抗「報酬順序風險」的核心。
               </p>
             </div>
 

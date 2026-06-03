@@ -131,7 +131,7 @@ export default function Report() {
             <LineChartIcon size={20} className="text-teal-700" />
             <h2 className="text-lg font-bold text-stone-900">未來資產壓力曲線</h2>
           </div>
-          <p className="text-xs text-stone-400 mb-4">純股票 vs 股票＋保本三層 — 退休提領期的關鍵差異</p>
+          <p className="text-xs text-stone-400 mb-4">純股票 vs 股票＋配息保本 — 退休提領期的關鍵差異</p>
 
           {ruinAge !== null && (
             <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 mb-4">
@@ -180,7 +180,7 @@ export default function Report() {
                   </td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />股票 + 保本三層</span></td>
+                  <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />股票 + 配息保本</span></td>
                   <td className="px-4 py-3 text-right font-bold text-stone-800">NT$ {fmt(calc.defenseAtRetire)}</td>
                   <td className={`px-4 py-3 text-right font-semibold ${calc.defenseSpan.reachedLife ? "text-teal-700" : "text-red-600"}`}>
                     {calc.defenseSpan.reachedLife ? `逾 ${calc.defenseSpan.years} 年（撐至壽命）` : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月見底`}
