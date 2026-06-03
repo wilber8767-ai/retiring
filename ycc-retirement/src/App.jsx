@@ -3,12 +3,10 @@ import { useNavigate } from "react-router-dom";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ReferenceLine,
-  PieChart, Pie, Cell,
 } from "recharts";
 import {
-  Wallet, TrendingDown, ShieldCheck, Activity, HeartPulse, Coins, Calendar,
-  PiggyBank, Landmark, TrendingUp, Skull, Layers,
-  FileText, UserRound,
+  Wallet, TrendingDown, Activity, Coins, Calendar,
+  PiggyBank, TrendingUp, Layers, UserRound,
 } from "lucide-react";
 
 // ===== 歷史報酬序列（價格報酬，不含配息）=====
@@ -128,14 +126,7 @@ export default function App() {
   const [monthlyFixed, setMonthlyFixed] = useState(5000);   // ★每月固定存（0% 不生息）
   const [monthlyInvest, setMonthlyInvest] = useState(10000); // ★每月定期定額（隨報酬波動）
   const [annualReturn, setAnnualReturn] = useState(6); // 工作期/退休前報酬 %
-  const [retireReturn, setRetireReturn] = useState(3); // ★退休後保守報酬率（Glide Path）%
   const [inflation, setInflation] = useState(2.5); // 通膨率 %
-
-  // 勞保/勞退
-  const [includePension, setIncludePension] = useState(true); // ★勞保開關
-  const [monthlyPension, setMonthlyPension] = useState(20000); // ★每月基礎退休金（現值）
-
-  const [includeMedical, setIncludeMedical] = useState(true); // 75 歲扣 500 萬
 
   // 圖表曲線可見性（線圖模式用）
   const [showLines, setShowLines] = useState({ perfect: true, t0050: false, sp500: false, defense: false });
@@ -148,6 +139,7 @@ export default function App() {
   // 第四步路線B：配息現金流的合理年報酬率（使用者可調）
   const [incomeYieldAssumption, setIncomeYieldAssumption] = useState(4);
   const [yieldText, setYieldText] = useState("4"); // 報酬率輸入框本地字串（可自由編輯）
+  const [selectedPlan, setSelectedPlan] = useState("B"); // 選中的方案：A=存一筆 / B=配息現金流
 
   // ★三層防禦配置（退休那刻將資產拆成現金/配息/成長三層；僅作用於防禦機制紫線）
   const [cashPct, setCashPct] = useState(15);       // 現金安全層 %
@@ -155,8 +147,6 @@ export default function App() {
   // 成長層 % = 100 - cashPct - incomePct（自動計算）
   const [dividendRate, setDividendRate] = useState(4); // 配息層年配息率 %
 
-  const MEDICAL_DEBT = 5000000;
-  const MEDICAL_AGE = 75;
 
   // ===== 核心運算 =====
   // 生日變動 -> 自動換算當前年齡並回填滑桿
@@ -179,8 +169,7 @@ export default function App() {
   }, []);
 
   const calc = useMemo(() => {
-    const rPre = annualReturn / 100;   // 退休前報酬
-    const rPost = retireReturn / 100;  // 退休後保守報酬（綠線用）
+    const rPre = annualReturn / 100;   // 報酬率（退休前後一致）
     const inf = inflation / 100;
     const yearsToRetire = Math.max(0, retireAge - currentAge);
     const retireYears = Math.max(0, lifeAge - retireAge);
@@ -189,18 +178,11 @@ export default function App() {
     const firstYearMonthly = monthlyExpense * Math.pow(1 + inf, yearsToRetire);
     const firstYearAnnual = firstYearMonthly * 12;
 
-    // 勞保年金：退休首年名目年金額
-    const pensionFirstYearAnnual = includePension
-      ? monthlyPension * 12 * Math.pow(1 + inf, yearsToRetire)
-      : 0;
-
-    // 退休所需總資金（名目年金現值）：以「淨提領 = 生活費 − 勞保年金」折現
+    // 退休所需總資金（名目現值）：全額生活費逐年折現（不抵勞保，保守估計）
     let needAtRetire = 0;
     for (let t = 0; t < retireYears; t++) {
       const expenseThatYear = firstYearAnnual * Math.pow(1 + inf, t);
-      const pensionThatYear = pensionFirstYearAnnual * Math.pow(1 + inf, t);
-      const netDraw = Math.max(0, expenseThatYear - pensionThatYear);
-      needAtRetire += netDraw / Math.pow(1 + rPost, t); // 退休後以保守報酬折現
+      needAtRetire += expenseThatYear / Math.pow(1 + rPre, t);
     }
 
     // 已有準備金成長到退休年（退休前報酬）
@@ -223,14 +205,8 @@ export default function App() {
     // 退休當下總資產
     const fundAtRetire = initialAtRetire + contributionFV;
 
-    // 醫療負債折現到退休年
-    let medicalPV = 0;
-    if (includeMedical && MEDICAL_AGE > retireAge && MEDICAL_AGE <= lifeAge) {
-      medicalPV = MEDICAL_DEBT / Math.pow(1 + rPost, MEDICAL_AGE - retireAge);
-    }
-
     // 缺口（退休年現值）
-    const gapAtRetire = Math.max(0, needAtRetire + medicalPV - fundAtRetire);
+    const gapAtRetire = Math.max(0, needAtRetire - fundAtRetire);
 
     // PMT 反推：在既有投入之外，現在還需每月再投入多少
     let extraMonthly = 0;
@@ -276,10 +252,7 @@ export default function App() {
       const retireYearIndex = age - retireAge; // 0 = 退休當年, 1 = 退休後第1年...
 
       const expenseNow = monthlyExpense * 12 * Math.pow(1 + inf, yearIndex);
-      const pensionNow = includePension
-        ? monthlyPension * 12 * Math.pow(1 + inf, yearIndex)
-        : 0;
-      const netDrawNow = Math.max(0, expenseNow - pensionNow); // 退休後嚴格淨提領
+      const netDrawNow = Math.max(0, expenseNow); // 退休後每年提領（全額生活費，不抵勞保）
       const annualInvest = monthlyInvest * 12;   // 定期定額（隨報酬波動）
       const annualFixed = monthlyFixed * 12;     // 固定存（0% 不生息，純累加）
 
@@ -294,13 +267,11 @@ export default function App() {
       const rSP = shockReturn !== null ? shockReturn : histSP;
       const r0050 = shockReturn !== null ? shockReturn : hist0050;
 
-      // 綠線：完美預期（Glide Path，無衝擊）
+      // 綠線：完美預期（固定報酬率，無市場衝擊）
       if (!bankruptPerfect) {
-        const growth = isRetired ? rPost : rPre;
-        balPerfect = balPerfect * (1 + growth);
+        balPerfect = balPerfect * (1 + rPre);
         if (isRetired) balPerfect -= netDrawNow;
         else balPerfect += annualInvest + annualFixed;
-        if (includeMedical && age === MEDICAL_AGE) balPerfect -= MEDICAL_DEBT;
         if (balPerfect <= 0) { balPerfect = 0; bankruptPerfect = true; ruinPerfect = age; }
       } else balPerfect = 0;
 
@@ -309,7 +280,6 @@ export default function App() {
         balSP = balSP * (1 + rSP);
         if (isRetired) balSP -= netDrawNow;
         else balSP += annualInvest + annualFixed;
-        if (includeMedical && age === MEDICAL_AGE) balSP -= MEDICAL_DEBT;
         if (balSP <= 0) { balSP = 0; bankruptSP = true; ruinSP = age; }
       } else balSP = 0;
 
@@ -318,7 +288,6 @@ export default function App() {
         bal0050 = bal0050 * (1 + r0050);
         if (isRetired) bal0050 -= netDrawNow;
         else bal0050 += annualInvest + annualFixed;
-        if (includeMedical && age === MEDICAL_AGE) bal0050 -= MEDICAL_DEBT;
         if (bal0050 <= 0) { bal0050 = 0; bankrupt0050 = true; ruin0050 = age; }
       } else bal0050 = 0;
 
@@ -339,7 +308,7 @@ export default function App() {
           growthLayer = growthLayer * (1 + rSP);
           // 配息層：本金不變，產生年配息現金流
           const dividendIncome = incomeLayer * divRate;
-          // 當年需從資產淨提領（已扣勞保年金）
+          // 當年需從資產提領（全額生活費）
           let need = netDrawNow;
           // 1) 先用配息收益
           need -= dividendIncome;
@@ -353,12 +322,6 @@ export default function App() {
           if (need > 0) {
             growthLayer -= need;
             need = 0;
-          }
-          // 醫療負債：優先扣現金、再扣成長
-          if (includeMedical && age === MEDICAL_AGE) {
-            let debt = MEDICAL_DEBT;
-            const c = Math.min(cashLayer, debt); cashLayer -= c; debt -= c;
-            if (debt > 0) growthLayer -= debt;
           }
           if (growthLayer < 0) growthLayer = 0;
           balDefense = cashLayer + incomeLayer + growthLayer;
@@ -381,7 +344,6 @@ export default function App() {
         soloStock = accInvest + accFixed; // 退休前 = 累積總額
       } else if (!soloBankrupt) {
         soloStock = soloStock * (1 + rStock) - netDrawNow;
-        if (includeMedical && age === MEDICAL_AGE) soloStock -= MEDICAL_DEBT;
         if (soloStock <= 0) { soloStock = 0; soloBankrupt = true; }
       } else soloStock = 0;
 
@@ -436,8 +398,7 @@ export default function App() {
         // 當年淨提領（與迴圈同口徑）
         const yi = ageHere - currentAge;
         const expense = monthlyExpense * 12 * Math.pow(1 + inf, yi);
-        const pension = includePension ? monthlyPension * 12 * Math.pow(1 + inf, yi) : 0;
-        const netDraw = Math.max(0, expense - pension);
+        const netDraw = Math.max(0, expense);
         if (bal > 0) {
           fullYears = ageHere - retireAge + 1;
         } else {
@@ -468,14 +429,6 @@ export default function App() {
 
     // 2) 退休現金流健康度（退休首年）：
     //    保證型收益 = 勞保年金(年) + 配息層年配息；波動型依賴 = 仍需從市場提領的缺口
-    const firstPension = pensionFirstYearAnnual; // 退休首年勞保年金
-    // 配息層 = 退休那刻資產 × 配息比例；年配息 = 配息層 × 配息率
-    const defenseRetireRow = data.find((d) => d.age === retireAge);
-    const incomeLayerAmount = (defenseRetireRow ? defenseRetireRow.defense : 0) * (incomePct / 100);
-    const firstDividend = incomeLayerAmount * (dividendRate / 100);
-    const guaranteedIncome = firstPension + firstDividend;
-    const marketDependent = Math.max(0, firstYearAnnual - guaranteedIncome);
-
     // ===== 四步引導流程：兩條路線所需本金 =====
     // （retireYears 已於前面宣告，此處直接沿用）
     // 路線A：本金純消耗(0%)，生活費逐年通膨成長，領到壽命歸零 → 所需本金 = 逐年生活費總和
@@ -494,13 +447,11 @@ export default function App() {
       data, retireAge,
       ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
       spRuinAge, defRuinAge, extraSafeYears,
-      guaranteedIncome, marketDependent,
       perfectAtRetire, defenseAtRetire, sp500AtRetire, perfectSpan, defenseSpan, sp500Span,
     };
   }, [
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
-    monthlyInvest, monthlyFixed, annualReturn, retireReturn, inflation,
-    includePension, monthlyPension, includeMedical,
+    monthlyInvest, monthlyFixed, annualReturn, inflation,
     cashPct, incomePct, dividendRate,
     stackScenario, stockPick, incomeYieldAssumption,
   ]);
@@ -584,82 +535,55 @@ export default function App() {
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">1</span>
             <h2 className="text-lg font-bold text-stone-900">參數設定</h2>
           </div>
-          <p className="text-xs text-stone-400 mb-4">填入您的退休規劃參數，下方曲線與診斷將即時更新</p>
+          <p className="text-xs text-stone-400 mb-4">填入退休規劃參數，下方引導流程將即時更新</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Calendar size={18} className="text-teal-700" /> 年齡控制
-                </h2>
-                <Slider label="當前年齡" value={currentAge} setValue={setCurrentAge} min={20} max={65} />
-                <Slider label="預計退休年齡" value={retireAge} setValue={setRetireAge} min={50} max={80} />
-                <Slider label="預估壽命" value={lifeAge} setValue={setLifeAge} min={70} max={100} />
-              </div>
-              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Landmark size={18} className="text-teal-700" /> 基礎社會保險
-                </h2>
-                <div className="flex items-center justify-between mb-4 p-3 bg-stone-100 rounded-lg">
-                  <span className="flex items-center gap-2 text-sm text-stone-700">
-                    <Landmark size={16} className="text-teal-700" /> 計入勞保／勞退年金
-                  </span>
-                  <Toggle checked={includePension} onChange={() => setIncludePension(!includePension)} />
-                </div>
-                <NumberInput label="每月基礎退休金（勞保/勞退，現值）" value={monthlyPension} setValue={setMonthlyPension} suffix="元" step={1000} icon={Coins} />
-                <p className="text-xs text-stone-500">退休後此筆現金流可抵銷部分通膨調整後生活費</p>
-              </div>
+            {/* 第一欄：年齡控制 */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Calendar size={18} className="text-teal-700" /> 年齡控制
+              </h2>
+              <Slider label="當前年齡" value={currentAge} setValue={setCurrentAge} min={20} max={65} />
+              <Slider label="預計退休年齡" value={retireAge} setValue={setRetireAge} min={50} max={80} />
+              <Slider label="預估壽命" value={lifeAge} setValue={setLifeAge} min={70} max={100} />
             </div>
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Wallet size={18} className="text-teal-700" /> 財務基礎
-                </h2>
-                <NumberInput label="退休後每月生活費（現值）" value={monthlyExpense} setValue={setMonthlyExpense} suffix="元" step={1000} icon={Coins} />
-                <p className="-mt-3 mb-4 text-xs text-stone-500">
-                  通膨調整後，退休當年實際約需 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> / 月
-                </p>
-                <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
-                <NumberInput label="工作期每月定期定額（隨市場波動）" value={monthlyInvest} setValue={setMonthlyInvest} suffix="元" step={1000} icon={PiggyBank} />
-                <NumberInput label="工作期每月固定存（0% 不生息）" value={monthlyFixed} setValue={setMonthlyFixed} suffix="元" step={1000} icon={Wallet} />
-                <NumberInput label="預估年化報酬率（退休前）" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
-                <NumberInput label="退休後保守報酬率（Glide Path）" value={retireReturn} setValue={setRetireReturn} suffix="%" step={0.1} icon={TrendingUp} />
-                <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
-              </div>
+
+            {/* 第二欄：財務基礎 */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Wallet size={18} className="text-teal-700" /> 財務基礎
+              </h2>
+              <NumberInput label="退休後每月生活費（現值）" value={monthlyExpense} setValue={setMonthlyExpense} suffix="元" step={1000} icon={Coins} />
+              <p className="-mt-3 mb-4 text-xs text-stone-500">
+                通膨調整後，退休當年實際約需 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> / 月
+              </p>
+              <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
+              <NumberInput label="工作期每月定期定額（隨市場波動）" value={monthlyInvest} setValue={setMonthlyInvest} suffix="元" step={1000} icon={PiggyBank} />
+              <NumberInput label="工作期每月固定存（0% 不生息）" value={monthlyFixed} setValue={setMonthlyFixed} suffix="元" step={1000} icon={Wallet} />
+              <NumberInput label="預估年化報酬率" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
+              <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
             </div>
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Layers size={18} className="text-teal-700" /> 退休資產三層配置
-                </h2>
-                <p className="text-xs text-stone-500 mb-4">退休那一刻將資產拆成三層，僅作用於「防禦機制」紫線</p>
-                <NumberInput label="現金安全層比例" value={cashPct} setValue={setCashPct} suffix="%" step={1} icon={Wallet} />
-                <NumberInput label="配息收益層比例" value={incomePct} setValue={setIncomePct} suffix="%" step={1} icon={Coins} />
-                <div className="mb-4 flex items-center justify-between rounded-lg bg-stone-100 px-3 py-2">
-                  <span className="text-sm text-stone-600">成長層比例（自動）</span>
-                  <span className={`font-bold ${(100 - cashPct - incomePct) < 0 ? "text-red-500" : "text-teal-700"}`}>
-                    {Math.max(0, 100 - cashPct - incomePct)}%
-                  </span>
-                </div>
-                <NumberInput label="配息層年配息率" value={dividendRate} setValue={setDividendRate} suffix="%" step={0.1} icon={TrendingUp} />
-                <p className="text-xs text-stone-500">
-                  現金層用完不補；配息層本金不變、每年產生配息；成長層續留市場波動。提領順序：配息 → 現金層 → 成長層。
-                </p>
-                {(100 - cashPct - incomePct) < 0 && (
-                  <p className="text-xs text-red-500 mt-2">⚠ 現金層 + 配息層超過 100%，請調整比例</p>
-                )}
+
+            {/* 第三欄：三層配置 */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Layers size={18} className="text-teal-700" /> 退休資產三層配置
+              </h2>
+              <p className="text-xs text-stone-500 mb-4">退休那一刻將資產拆成三層，用於「股票＋保本三層」情境</p>
+              <NumberInput label="現金安全層比例" value={cashPct} setValue={setCashPct} suffix="%" step={1} icon={Wallet} />
+              <NumberInput label="配息收益層比例" value={incomePct} setValue={setIncomePct} suffix="%" step={1} icon={Coins} />
+              <div className="mb-4 flex items-center justify-between rounded-lg bg-stone-100 px-3 py-2">
+                <span className="text-sm text-stone-600">成長層比例（自動）</span>
+                <span className={`font-bold ${(100 - cashPct - incomePct) < 0 ? "text-red-500" : "text-teal-700"}`}>
+                  {Math.max(0, 100 - cashPct - incomePct)}%
+                </span>
               </div>
-              <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <ShieldCheck size={18} className="text-teal-700" /> 風險與防禦
-                </h2>
-                <div className="flex items-center justify-between p-3 bg-stone-100 rounded-lg">
-                  <span className="flex items-center gap-2 text-sm text-stone-700">
-                    <HeartPulse size={16} className="text-red-400" /> 計入晚年醫療與長照負債
-                  </span>
-                  <Toggle checked={includeMedical} onChange={() => setIncludeMedical(!includeMedical)} />
-                </div>
-                <p className="text-xs text-stone-500 mt-2">開啟時於 75 歲對三條線各強制扣除 NT$ 5,000,000</p>
-              </div>
+              <NumberInput label="配息層年配息率" value={dividendRate} setValue={setDividendRate} suffix="%" step={0.1} icon={TrendingUp} />
+              <p className="text-xs text-stone-500">
+                現金層用完不補；配息層本金不變、每年產生配息；成長層續留市場波動。提領順序：配息 → 現金層 → 成長層。
+              </p>
+              {(100 - cashPct - incomePct) < 0 && (
+                <p className="text-xs text-red-500 mt-2">⚠ 現金層 + 配息層超過 100%，請調整比例</p>
+              )}
             </div>
           </div>
         </div>
@@ -744,22 +668,36 @@ export default function App() {
                 <h3 className="text-base font-bold text-stone-800">你需要準備多少？兩條路線</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 路線A：存一筆錢花到老 */}
-                <div className="rounded-xl border border-stone-200 p-5">
-                  <p className="text-sm font-bold text-stone-700 mb-1">路線 A · 存一筆錢，邊領邊花</p>
+                {/* 路線A：存一筆錢花到老（可點選） */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlan("A")}
+                  className={`text-left rounded-xl border-2 p-5 transition-all ${selectedPlan === "A" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-bold text-stone-700">路線 A · 存一筆錢，邊領邊花</p>
+                    {selectedPlan === "A" && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs">✓</span>}
+                  </div>
                   <p className="text-xs text-stone-400 mb-3">本金不增值，從 {retireAge} 歲領到 {lifeAge} 歲（共 {calc.retireYears} 年）剛好用完</p>
                   <p className="text-3xl font-black text-stone-800">{fmtMan(calc.lumpSumDepletion)}<span className="text-lg font-bold">萬</span></p>
                   <p className="text-xs text-stone-400 mt-2">退休時需準備的總金額</p>
-                </div>
-                {/* 路線B：配息現金流 */}
-                <div className="rounded-xl border border-teal-300 bg-teal-50/40 p-5">
-                  <p className="text-sm font-bold text-teal-700 mb-1">路線 B · 靠配息現金流，不動本金</p>
+                </button>
+                {/* 路線B：配息現金流（可點選） */}
+                <div
+                  onClick={() => setSelectedPlan("B")}
+                  className={`cursor-pointer rounded-xl border-2 p-5 transition-all ${selectedPlan === "B" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-bold text-teal-700">路線 B · 靠配息現金流，不動本金</p>
+                    {selectedPlan === "B" && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs">✓</span>}
+                  </div>
                   <p className="text-xs text-stone-400 mb-3">本金放著領配息，永遠不用動本金</p>
                   <div className="mb-3">
                     <label className="block text-xs font-medium text-stone-600 mb-1">你覺得合理的年報酬率？</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number" inputMode="decimal" step={0.5}
+                        onClick={(e) => e.stopPropagation()}
                         value={yieldText}
                         onChange={(e) => {
                           setYieldText(e.target.value);            // 即時更新顯示，可暫時為空
@@ -785,7 +723,7 @@ export default function App() {
                 </div>
               </div>
               <p className="text-xs text-stone-400 mt-3">
-                註：兩條路線皆以退休首年（通膨調整後）全額生活費試算，未扣除勞保年金，屬保守估計。
+                註：兩條路線皆以退休首年（通膨調整後）全額生活費試算，屬保守估計。
               </p>
             </div>
 
@@ -793,13 +731,24 @@ export default function App() {
             <div className="bg-gradient-to-br from-teal-700 to-teal-800 rounded-xl p-6 text-white shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 text-white text-sm font-bold">4</span>
-                <h3 className="text-base font-bold">你的退休解決方案</h3>
+                <h3 className="text-base font-bold">你的退休解決方案 · {selectedPlan === "A" ? "路線 A" : "路線 B"}</h3>
               </div>
               <p className="text-sm text-teal-50 leading-relaxed mb-4">
-                退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
-                若選擇靠配息現金流（路線 B），在 {incomeYieldAssumption}% 年報酬率下，
-                需準備本金 <span className="font-bold text-white">{fmtMan(calc.lumpSumIncome)} 萬</span>；
-                這筆本金能持續產生現金流、不必擔心市場大跌侵蝕老本。
+                {selectedPlan === "A" ? (
+                  <>
+                    退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
+                    您選擇的是「<span className="font-bold text-white">存一筆錢、邊領邊花</span>」，
+                    需在退休時準備 <span className="font-bold text-white">{fmtMan(calc.lumpSumDepletion)} 萬</span>，
+                    從 {retireAge} 歲領到 {lifeAge} 歲剛好用完。這條路本金會逐年消耗，需留意長壽與通膨風險。
+                  </>
+                ) : (
+                  <>
+                    退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
+                    您選擇的是「<span className="font-bold text-white">靠配息現金流、不動本金</span>」，
+                    在 {incomeYieldAssumption}% 年報酬率下需準備本金 <span className="font-bold text-white">{fmtMan(calc.lumpSumIncome)} 萬</span>；
+                    這筆本金能持續產生現金流、不必擔心市場大跌侵蝕老本，還可保留資產傳承。
+                  </>
+                )}
               </p>
               <div className="flex flex-wrap gap-3">
                 <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
@@ -807,8 +756,8 @@ export default function App() {
                   <p className="text-xl font-bold">NT$ {fmt(calc.firstYearMonthly)}</p>
                 </div>
                 <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
-                  <p className="text-xs text-teal-100 mb-1">配息路線所需本金</p>
-                  <p className="text-xl font-bold">{fmtMan(calc.lumpSumIncome)} 萬</p>
+                  <p className="text-xs text-teal-100 mb-1">{selectedPlan === "A" ? "存一筆錢方案所需總額" : "配息路線所需本金"}</p>
+                  <p className="text-xl font-bold">{fmtMan(selectedPlan === "A" ? calc.lumpSumDepletion : calc.lumpSumIncome)} 萬</p>
                 </div>
               </div>
             </div>
@@ -816,109 +765,6 @@ export default function App() {
         </div>
         {/* /退休現金流引導 */}
 
-        {/* 步驟三：壓力測試與解決方案 */}
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">3</span>
-            <h2 className="text-lg font-bold text-stone-900">壓力測試與解決方案</h2>
-          </div>
-          <p className="text-xs text-stone-400 mb-4">基於上述壓力測試之客觀診斷結果，制定缺口填補計畫並匯出報表</p>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 1) 壓力測試結果對比 Stress Test Results */}
-          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm flex flex-col">
-            <h3 className="text-xs font-semibold text-stone-500 mb-4 uppercase tracking-wide">壓力測試結果對比</h3>
-            <div className="space-y-3">
-              <div className="rounded-lg p-4 bg-stone-50 border border-stone-200">
-                <div className="text-xs text-stone-500 mb-1">無防禦機制</div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-stone-800">{calc.spRuinAge}</span>
-                  <span className="text-sm text-stone-500">歲</span>
-                  <span className="text-xs text-stone-400 ml-1">{calc.ruin.sp500 === null ? "未觸底" : "資產觸底"}</span>
-                </div>
-              </div>
-              <div className="rounded-lg p-4 bg-stone-50 border border-stone-200">
-                <div className="text-xs text-stone-500 mb-1">加入防禦資產</div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-bold text-stone-800">{calc.defRuinAge}</span>
-                  <span className="text-sm text-stone-500">歲</span>
-                  <span className="text-xs text-stone-400 ml-1">{calc.ruin.defense === null ? "未觸底" : "資產觸底"}</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-teal-50 border border-teal-200">
-              <TrendingUp size={16} className="text-teal-700" />
-              <span className="text-sm text-stone-600">有效延長絕對安全期</span>
-              <span className="text-xl font-bold text-teal-700">{calc.extraSafeYears}</span>
-              <span className="text-sm text-stone-600">年</span>
-            </div>
-          </div>
-
-          {/* 2) 退休現金流結構分析 Donut */}
-          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm flex flex-col">
-            <h3 className="text-xs font-semibold text-stone-500 mb-1 uppercase tracking-wide">退休現金流結構分析</h3>
-            <p className="text-xs text-stone-400 mb-2">退休首年收入來源組成</p>
-            <div className="flex-1 min-h-[150px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "保證型收益", value: Math.round(calc.guaranteedIncome) },
-                      { name: "波動型依賴", value: Math.round(calc.marketDependent) },
-                    ]}
-                    dataKey="value" nameKey="name"
-                    innerRadius={48} outerRadius={70} paddingAngle={2}
-                  >
-                    <Cell fill="#0f766e" />
-                    <Cell fill="#f59e0b" />
-                  </Pie>
-                  <Tooltip formatter={(v) => `NT$ ${fmt(v)}`} contentStyle={{ backgroundColor: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8, color: "#1c1917" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-1.5 mt-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-stone-600">
-                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: "#0f766e" }} /> 保證型收益（社會保險+穩定現金流）
-                </span>
-                <span className="font-semibold text-stone-800">{fmt(calc.guaranteedIncome)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-stone-600">
-                  <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: "#f59e0b" }} /> 波動型依賴（市場提領缺口）
-                </span>
-                <span className="font-semibold text-stone-800">{fmt(calc.marketDependent)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 3) 系統優化建議與匯出 */}
-          <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm flex flex-col">
-            <h3 className="text-xs font-semibold text-stone-500 mb-4 uppercase tracking-wide">缺口填補計畫</h3>
-            <div className="rounded-lg p-4 bg-stone-50 border border-stone-200 mb-3">
-              <div className="text-xs text-stone-500 mb-1">每月需額外投入（PMT）</div>
-              <div className="text-2xl font-bold text-stone-800">NT$ {fmt(calc.extraMonthly)}</div>
-            </div>
-            <div className="rounded-lg p-4 bg-stone-50 border border-stone-200">
-              <div className="text-xs text-stone-500 mb-1">或單筆投入</div>
-              <div className="text-2xl font-bold text-stone-800">NT$ {fmt(calc.lumpSum)}</div>
-            </div>
-            <div className="flex-1" />
-            <button
-              onClick={() => navigate("/report", { state: {
-                client: { clientName, clientGender, clientBirth },
-                params: { currentAge, retireAge, lifeAge, monthlyExpense, initialFund, monthlyInvest, monthlyFixed, annualReturn, retireReturn, inflation, includePension, monthlyPension, includeMedical, cashPct, incomePct, dividendRate },
-                calc,
-              } })}
-              className="no-print mt-4 flex items-center justify-center gap-2 border border-teal-700 text-teal-700 hover:bg-teal-50 font-semibold px-5 py-3 rounded-lg transition-colors"
-            >
-              <FileText size={18} />
-              匯出資產壓力測試報告（PDF）
-            </button>
-          </div>
-          </div>
-        </div>
-        {/* /壓力測試與解決方案 */}
       </main>
 
       <footer className="text-center text-xs text-stone-400 py-6 border-t border-stone-200">
