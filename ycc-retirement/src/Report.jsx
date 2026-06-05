@@ -33,10 +33,10 @@ export default function Report() {
   const { client, params, calc, selectedPlan } = state;
   const today = new Date().toLocaleDateString("zh-TW");
   const planLabel = selectedPlan === "A" ? "存一筆錢，邊領邊花"
-    : selectedPlan === "C" ? "一半消耗，一半配息"
+    : selectedPlan === "B" ? "一半消耗，一半配息"
     : "靠配息現金流，不動本金";
   const targetAmount = selectedPlan === "A" ? calc.lumpSumDepletion
-    : selectedPlan === "C" ? calc.lumpSumHalf
+    : selectedPlan === "B" ? calc.lumpSumHalf
     : calc.lumpSumIncome;
   const yearsToRetire = Math.max(0, params.retireAge - params.currentAge);
 
@@ -70,7 +70,7 @@ export default function Report() {
             退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>（通膨調整後）。
             {selectedPlan === "A"
               ? `採「存一筆錢」方式，需在退休時準備 ${fmtAmount(targetAmount)}，從 ${params.retireAge} 歲領到 ${params.lifeAge} 歲。`
-              : selectedPlan === "C"
+              : selectedPlan === "B"
               ? `採「一半消耗、一半配息」方式，需在退休時準備 ${fmtAmount(targetAmount)}，兼顧彈性與穩定。`
               : `採「配息現金流」方式，在 ${params.incomeYieldAssumption}% 年報酬率下需準備本金 ${fmtAmount(targetAmount)}，本金可保留、持續產生現金流。`}
           </p>

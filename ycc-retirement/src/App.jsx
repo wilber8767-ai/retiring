@@ -118,7 +118,7 @@ export default function App() {
   // 第四步路線B：配息現金流的合理年報酬率（使用者可調）
   const [incomeYieldAssumption, setIncomeYieldAssumption] = useState(4);
   const [yieldText, setYieldText] = useState("4"); // 報酬率輸入框本地字串（可自由編輯）
-  const [selectedPlan, setSelectedPlan] = useState("B"); // 選中的方案：A=存一筆 / B=配息現金流
+  const [selectedPlan, setSelectedPlan] = useState("C"); // 選中的方案：A=存一筆 / B=配息現金流
   const [needAnswer, setNeedAnswer] = useState(null); // 第二步提問：need=一定需要 / maybe=可有可無
   const [delayYears, setDelayYears] = useState(10); // 拖延成本：晚幾年才開始準備
 
@@ -167,7 +167,7 @@ export default function App() {
 
     // ===== 拖延成本：達成目標金額，現在開始 vs 拖 N 年開始，每月各要存多少 =====
     // 目標金額 = 選中方案所需（扣掉已有準備金成長後的缺口），用 rPre 月複利反推 PMT
-    const targetAmount = selectedPlan === "A" ? lumpSumDepletion : selectedPlan === "C" ? lumpSumHalf : lumpSumIncome;
+    const targetAmount = selectedPlan === "A" ? lumpSumDepletion : selectedPlan === "B" ? lumpSumHalf : lumpSumIncome;
     const gapToFill = Math.max(0, targetAmount - initialAtRetire);
     const mRate = rPre / 12;
     const pmtFor = (years) => {
@@ -399,12 +399,12 @@ export default function App() {
                 {/* 路線C：一半消耗+一半配息（可點選） */}
                 <button
                   type="button"
-                  onClick={() => setSelectedPlan("C")}
-                  className={`text-left rounded-xl border-2 p-5 transition-all ${selectedPlan === "C" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
+                  onClick={() => setSelectedPlan("B")}
+                  className={`text-left rounded-xl border-2 p-5 transition-all ${selectedPlan === "B" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-base font-bold text-stone-700">路線 C · 一半消耗，一半配息</p>
-                    {selectedPlan === "C" && <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm">✓</span>}
+                    <p className="text-base font-bold text-stone-700">路線 B · 一半消耗，一半配息</p>
+                    {selectedPlan === "B" && <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm">✓</span>}
                   </div>
                   <p className="text-sm text-stone-500 mb-3">一半本金邊領邊花、一半放著領配息，兼顧彈性與穩定</p>
                   <p className="text-4xl font-black text-stone-800">{fmtAmount(calc.lumpSumHalf)}</p>
@@ -412,12 +412,12 @@ export default function App() {
                 </button>
                 {/* 路線B：配息現金流（可點選） */}
                 <div
-                  onClick={() => setSelectedPlan("B")}
-                  className={`cursor-pointer rounded-xl border-2 p-5 transition-all ${selectedPlan === "B" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
+                  onClick={() => setSelectedPlan("C")}
+                  className={`cursor-pointer rounded-xl border-2 p-5 transition-all ${selectedPlan === "C" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-base font-bold text-teal-700">路線 B · 靠配息現金流，不動本金</p>
-                    {selectedPlan === "B" && <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm">✓</span>}
+                    <p className="text-base font-bold text-teal-700">路線 C · 靠配息現金流，不動本金</p>
+                    {selectedPlan === "C" && <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm">✓</span>}
                   </div>
                   <p className="text-sm text-stone-500 mb-3">本金放著領配息，永遠不用動本金</p>
                   <div className="mb-3">
@@ -451,7 +451,7 @@ export default function App() {
                 </div>
               </div>
               <p className="text-xs text-stone-400 mt-3">
-                註：兩條路線皆以退休首年（通膨調整後）全額生活費試算，屬保守估計。
+                註：三條路線皆以退休首年（通膨調整後）全額生活費試算，屬保守估計。
               </p>
             </div>
 
@@ -500,7 +500,7 @@ export default function App() {
             <div className="bg-gradient-to-br from-teal-700 to-teal-800 rounded-xl p-6 text-white shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 text-white text-sm font-bold">4</span>
-                <h3 className="text-lg font-bold">你的退休解決方案 · {selectedPlan === "A" ? "路線 A" : selectedPlan === "C" ? "路線 C" : "路線 B"}</h3>
+                <h3 className="text-lg font-bold">你的退休解決方案 · {selectedPlan === "A" ? "路線 A" : selectedPlan === "B" ? "路線 B" : "路線 C"}</h3>
               </div>
               <p className="text-base text-teal-50 leading-relaxed mb-4">
                 {selectedPlan === "A" ? (
@@ -510,7 +510,7 @@ export default function App() {
                     需在退休時準備 <span className="font-bold text-white">{fmtAmount(calc.lumpSumDepletion)}</span>，
                     從 {retireAge} 歲領到 {lifeAge} 歲剛好用完。這條路本金會逐年消耗，需留意長壽與通膨風險。
                   </>
-                ) : selectedPlan === "C" ? (
+                ) : selectedPlan === "B" ? (
                   <>
                     退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
                     您選擇的是「<span className="font-bold text-white">一半消耗、一半配息</span>」，
@@ -532,7 +532,7 @@ export default function App() {
                   <p className="text-2xl font-bold">NT$ {fmt(calc.firstYearMonthly)}</p>
                 </div>
                 <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
-                  <p className="text-sm text-teal-100 mb-1">{selectedPlan === "A" ? "存一筆錢方案所需總額" : selectedPlan === "C" ? "折衷方案所需總額" : "配息路線所需本金"}</p>
+                  <p className="text-sm text-teal-100 mb-1">{selectedPlan === "A" ? "存一筆錢方案所需總額" : selectedPlan === "B" ? "折衷方案所需總額" : "配息路線所需本金"}</p>
                   <p className="text-2xl font-bold">{fmtAmount(calc.targetAmount)}</p>
                 </div>
               </div>
