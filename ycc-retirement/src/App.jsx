@@ -162,10 +162,12 @@ export default function App() {
     // 路線B：配息現金流(不動本金) → 本金 = 退休首年年生活費 ÷ 年報酬率
     const incomeYield = incomeYieldAssumption / 100;
     const lumpSumIncome = incomeYield > 0 ? firstYearAnnual / incomeYield : 0;
+    // 路線C：一半本金純消耗 + 一半靠配息 → 所需 = A的一半 + B的一半
+    const lumpSumHalf = lumpSumDepletion / 2 + lumpSumIncome / 2;
 
     // ===== 拖延成本：達成目標金額，現在開始 vs 拖 N 年開始，每月各要存多少 =====
     // 目標金額 = 選中方案所需（扣掉已有準備金成長後的缺口），用 rPre 月複利反推 PMT
-    const targetAmount = selectedPlan === "A" ? lumpSumDepletion : lumpSumIncome;
+    const targetAmount = selectedPlan === "A" ? lumpSumDepletion : selectedPlan === "C" ? lumpSumHalf : lumpSumIncome;
     const gapToFill = Math.max(0, targetAmount - initialAtRetire);
     const mRate = rPre / 12;
     const pmtFor = (years) => {
@@ -179,7 +181,7 @@ export default function App() {
     const monthlyExtra = Math.max(0, monthlyDelayed - monthlyNow);
 
     return {
-      retireYears, lumpSumDepletion, lumpSumIncome, incomeYieldAssumption,
+      retireYears, lumpSumDepletion, lumpSumIncome, lumpSumHalf, incomeYieldAssumption,
       monthlyNow, monthlyDelayed, monthlyExtra, targetAmount,
       firstYearMonthly, retireAge,
     };
@@ -266,7 +268,7 @@ export default function App() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">1</span>
-            <h2 className="text-lg font-bold text-stone-900">參數設定</h2>
+            <h2 className="text-xl font-bold text-stone-900">參數設定</h2>
           </div>
           <p className="text-xs text-stone-400 mb-4">填入退休規劃參數，下方引導流程將即時更新</p>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -308,7 +310,7 @@ export default function App() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-700 text-white text-xs font-bold">2</span>
-            <h2 className="text-lg font-bold text-stone-900">退休現金流引導</h2>
+            <h2 className="text-xl font-bold text-stone-900">退休現金流引導</h2>
           </div>
           <p className="text-sm text-stone-500 mb-4 ml-8">四個步驟，帶客戶看懂「退休要準備多少、怎麼準備」</p>
 
@@ -317,17 +319,17 @@ export default function App() {
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">1</span>
-                <h3 className="text-base font-bold text-stone-800">退休後，一個月要花多少？</h3>
+                <h3 className="text-lg font-bold text-stone-800">退休後，一個月要花多少？</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-xl p-5 bg-stone-50 border border-stone-200">
-                  <p className="text-sm text-stone-500 mb-1">現在每月生活費（今日幣值）</p>
-                  <p className="text-2xl font-black text-stone-800">NT$ {fmt(monthlyExpense)}</p>
+                  <p className="text-base text-stone-500 mb-1">現在每月生活費（今日幣值）</p>
+                  <p className="text-3xl font-black text-stone-800">NT$ {fmt(monthlyExpense)}</p>
                 </div>
                 <div className="rounded-xl p-5 bg-orange-50 border border-orange-200">
-                  <p className="text-sm text-orange-600 mb-1">退休當年實際需要（通膨後）</p>
-                  <p className="text-2xl font-black text-orange-600">NT$ {fmt(calc.firstYearMonthly)}</p>
-                  <p className="text-xs text-orange-500 mt-1">{Math.max(0, retireAge - currentAge)} 年通膨累積後</p>
+                  <p className="text-base text-orange-600 mb-1">退休當年實際需要（通膨後）</p>
+                  <p className="text-3xl font-black text-orange-600">NT$ {fmt(calc.firstYearMonthly)}</p>
+                  <p className="text-sm text-orange-500 mt-1">{Math.max(0, retireAge - currentAge)} 年通膨累積後</p>
                 </div>
               </div>
             </div>
@@ -336,38 +338,38 @@ export default function App() {
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">2</span>
-                <h3 className="text-base font-bold text-stone-800">退休後這筆生活費，對您來說是？</h3>
+                <h3 className="text-lg font-bold text-stone-800">如果退休後沒準備這筆錢，生活會變怎樣？</h3>
               </div>
-              <p className="text-sm text-stone-600 mb-4 leading-relaxed">
-                退休後每月需要 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> 維持生活。請先想想：這筆錢對您而言是必需，還是可有可無？
+              <p className="text-base text-stone-600 mb-4 leading-relaxed">
+                退休後每月需要 <span className="font-bold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> 才能維持現在的生活水準。假如這筆錢沒準備好，您覺得退休生活會是？
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setNeedAnswer("need")}
-                  className={`py-4 rounded-xl border-2 font-bold transition-all ${needAnswer === "need" ? "border-teal-600 bg-teal-600 text-white shadow-md" : "border-stone-300 bg-white text-stone-700 hover:border-teal-400"}`}
+                  className={`py-5 rounded-xl border-2 text-lg font-bold transition-all ${needAnswer === "need" ? "border-teal-600 bg-teal-600 text-white shadow-md" : "border-stone-300 bg-white text-stone-700 hover:border-teal-400"}`}
                 >
-                  一定需要
+                  生活會出問題
                 </button>
                 <button
                   type="button"
                   onClick={() => setNeedAnswer("maybe")}
-                  className={`py-4 rounded-xl border-2 font-bold transition-all ${needAnswer === "maybe" ? "border-stone-500 bg-stone-500 text-white shadow-md" : "border-stone-300 bg-white text-stone-700 hover:border-stone-400"}`}
+                  className={`py-5 rounded-xl border-2 text-lg font-bold transition-all ${needAnswer === "maybe" ? "border-stone-500 bg-stone-500 text-white shadow-md" : "border-stone-300 bg-white text-stone-700 hover:border-stone-400"}`}
                 >
-                  可有可無
+                  應該還能應付
                 </button>
               </div>
               {needAnswer === "need" && (
                 <div className="mt-4 rounded-xl bg-teal-50 border border-teal-200 px-5 py-4">
-                  <p className="text-sm text-teal-800 leading-relaxed">
-                    <span className="font-bold">沒錯，這是退休生活的底線。</span>既然這筆錢一定要有，關鍵就不是「要不要準備」，而是「現在就開始，還是等以後」——越早開始，每月負擔越輕。我們往下看要準備多少。
+                  <p className="text-base text-teal-800 leading-relaxed">
+                    <span className="font-bold">這正是提早準備的意義。</span>退休後沒有薪水，這筆生活費卻每個月照樣發生。既然不準備生活就會出問題，關鍵就不是「要不要準備」，而是「現在開始，還是拖到以後」——越早開始，每月負擔越輕。我們往下看要準備多少。
                   </p>
                 </div>
               )}
               {needAnswer === "maybe" && (
                 <div className="mt-4 rounded-xl bg-stone-100 border border-stone-200 px-5 py-4">
-                  <p className="text-sm text-stone-700 leading-relaxed">
-                    可以理解。不過退休後沒有薪水，這筆生活費是每個月都會發生的固定支出——如果不靠自己準備，屆時要靠誰？不妨先看看完整準備的金額，再決定如何取捨。
+                  <p className="text-base text-stone-700 leading-relaxed">
+                    若真能應付當然好。但「應付」往往是壓縮生活品質、或動用原本想留給家人的資產換來的。與其退休後被迫將就，不如現在先看看完整準備需要多少，把選擇權留在自己手上。
                   </p>
                 </div>
               )}
@@ -377,9 +379,9 @@ export default function App() {
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-teal-100 text-teal-700 text-sm font-bold">3</span>
-                <h3 className="text-base font-bold text-stone-800">你需要準備多少？兩條路線</h3>
+                <h3 className="text-lg font-bold text-stone-800">你需要準備多少？三條路線</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* 路線A：存一筆錢花到老（可點選） */}
                 <button
                   type="button"
@@ -387,12 +389,26 @@ export default function App() {
                   className={`text-left rounded-xl border-2 p-5 transition-all ${selectedPlan === "A" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-stone-700">路線 A · 存一筆錢，邊領邊花</p>
-                    {selectedPlan === "A" && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs">✓</span>}
+                    <p className="text-base font-bold text-stone-700">路線 A · 存一筆錢，邊領邊花</p>
+                    {selectedPlan === "A" && <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm">✓</span>}
                   </div>
-                  <p className="text-xs text-stone-400 mb-3">本金不增值，從 {retireAge} 歲領到 {lifeAge} 歲（共 {calc.retireYears} 年）剛好用完</p>
-                  <p className="text-3xl font-black text-stone-800">{fmtAmount(calc.lumpSumDepletion)}</p>
-                  <p className="text-xs text-stone-400 mt-2">退休時需準備的總金額</p>
+                  <p className="text-sm text-stone-500 mb-3">本金不增值，從 {retireAge} 歲領到 {lifeAge} 歲（共 {calc.retireYears} 年）剛好用完</p>
+                  <p className="text-4xl font-black text-stone-800">{fmtAmount(calc.lumpSumDepletion)}</p>
+                  <p className="text-sm text-stone-500 mt-2">退休時需準備的總金額</p>
+                </button>
+                {/* 路線C：一半消耗+一半配息（可點選） */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlan("C")}
+                  className={`text-left rounded-xl border-2 p-5 transition-all ${selectedPlan === "C" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-base font-bold text-stone-700">路線 C · 一半消耗，一半配息</p>
+                    {selectedPlan === "C" && <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm">✓</span>}
+                  </div>
+                  <p className="text-sm text-stone-500 mb-3">一半本金邊領邊花、一半放著領配息，兼顧彈性與穩定</p>
+                  <p className="text-4xl font-black text-stone-800">{fmtAmount(calc.lumpSumHalf)}</p>
+                  <p className="text-sm text-stone-500 mt-2">退休時需準備的總金額</p>
                 </button>
                 {/* 路線B：配息現金流（可點選） */}
                 <div
@@ -400,12 +416,12 @@ export default function App() {
                   className={`cursor-pointer rounded-xl border-2 p-5 transition-all ${selectedPlan === "B" ? "border-teal-600 bg-teal-50/60 shadow-md" : "border-stone-200 bg-white hover:border-stone-300"}`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-bold text-teal-700">路線 B · 靠配息現金流，不動本金</p>
-                    {selectedPlan === "B" && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs">✓</span>}
+                    <p className="text-base font-bold text-teal-700">路線 B · 靠配息現金流，不動本金</p>
+                    {selectedPlan === "B" && <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-sm">✓</span>}
                   </div>
-                  <p className="text-xs text-stone-400 mb-3">本金放著領配息，永遠不用動本金</p>
+                  <p className="text-sm text-stone-500 mb-3">本金放著領配息，永遠不用動本金</p>
                   <div className="mb-3">
-                    <label className="block text-xs font-medium text-stone-600 mb-1">你覺得合理的年報酬率？</label>
+                    <label className="block text-sm font-medium text-stone-600 mb-1">你覺得合理的年報酬率？</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number" inputMode="decimal" step={0.5}
@@ -430,8 +446,8 @@ export default function App() {
                       <span className="text-sm text-stone-500">% / 年</span>
                     </div>
                   </div>
-                  <p className="text-3xl font-black text-teal-700">{fmtAmount(calc.lumpSumIncome)}</p>
-                  <p className="text-xs text-stone-400 mt-2">需準備的本金（{incomeYieldAssumption}% 配息可支應退休首年生活費）</p>
+                  <p className="text-4xl font-black text-teal-700">{fmtAmount(calc.lumpSumIncome)}</p>
+                  <p className="text-sm text-stone-500 mt-2">需準備的本金（{incomeYieldAssumption}% 配息可支應退休首年生活費）</p>
                 </div>
               </div>
               <p className="text-xs text-stone-400 mt-3">
@@ -443,14 +459,14 @@ export default function App() {
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 text-sm font-bold">!</span>
-                <h3 className="text-base font-bold text-stone-800">越晚開始，負擔越重</h3>
+                <h3 className="text-lg font-bold text-stone-800">越晚開始，負擔越重</h3>
               </div>
               <p className="text-sm text-stone-600 mb-4 leading-relaxed">
                 同樣的目標金額（{fmtAmount(calc.targetAmount)}），現在就開始準備，跟拖延之後才開始，每月要存的錢差很多：
               </p>
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 <span className="text-xs text-stone-400 mr-1">假設拖延</span>
-                {[5, 10, 15].map((y) => (
+                {[10, 15].map((y) => (
                   <button
                     key={y}
                     type="button"
@@ -463,18 +479,18 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-5">
-                  <p className="text-sm text-teal-700 mb-1">現在就開始</p>
-                  <p className="text-2xl font-black text-teal-700">NT$ {fmt(calc.monthlyNow)}<span className="text-sm font-bold"> / 月</span></p>
-                  <p className="text-xs text-stone-400 mt-1">距退休還有 {Math.max(0, retireAge - currentAge)} 年</p>
+                  <p className="text-base text-teal-700 mb-1">現在就開始</p>
+                  <p className="text-3xl font-black text-teal-700">NT$ {fmt(calc.monthlyNow)}<span className="text-base font-bold"> / 月</span></p>
+                  <p className="text-sm text-stone-400 mt-1">距退休還有 {Math.max(0, retireAge - currentAge)} 年</p>
                 </div>
                 <div className="rounded-xl border-2 border-orange-300 bg-orange-50/60 p-5">
-                  <p className="text-sm text-orange-600 mb-1">拖延 {delayYears} 年才開始</p>
-                  <p className="text-2xl font-black text-orange-600">NT$ {fmt(calc.monthlyDelayed)}<span className="text-sm font-bold"> / 月</span></p>
-                  <p className="text-xs text-orange-500 mt-1">只剩 {Math.max(0, retireAge - currentAge - delayYears)} 年可準備</p>
+                  <p className="text-base text-orange-600 mb-1">拖延 {delayYears} 年才開始</p>
+                  <p className="text-3xl font-black text-orange-600">NT$ {fmt(calc.monthlyDelayed)}<span className="text-base font-bold"> / 月</span></p>
+                  <p className="text-sm text-orange-500 mt-1">只剩 {Math.max(0, retireAge - currentAge - delayYears)} 年可準備</p>
                 </div>
               </div>
               <div className="mt-4 rounded-lg bg-orange-50 border border-orange-200 px-5 py-3">
-                <p className="text-sm text-orange-700">
+                <p className="text-base text-orange-700">
                   拖延 {delayYears} 年，每月得多存 <span className="font-bold">NT$ {fmt(calc.monthlyExtra)}</span>——時間就是您最大的本錢，越早開始越輕鬆。
                 </p>
               </div>
@@ -484,15 +500,22 @@ export default function App() {
             <div className="bg-gradient-to-br from-teal-700 to-teal-800 rounded-xl p-6 text-white shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <span className="flex items-center justify-center w-7 h-7 rounded-full bg-white/20 text-white text-sm font-bold">4</span>
-                <h3 className="text-base font-bold">你的退休解決方案 · {selectedPlan === "A" ? "路線 A" : "路線 B"}</h3>
+                <h3 className="text-lg font-bold">你的退休解決方案 · {selectedPlan === "A" ? "路線 A" : selectedPlan === "C" ? "路線 C" : "路線 B"}</h3>
               </div>
-              <p className="text-sm text-teal-50 leading-relaxed mb-4">
+              <p className="text-base text-teal-50 leading-relaxed mb-4">
                 {selectedPlan === "A" ? (
                   <>
                     退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
                     您選擇的是「<span className="font-bold text-white">存一筆錢、邊領邊花</span>」，
                     需在退休時準備 <span className="font-bold text-white">{fmtAmount(calc.lumpSumDepletion)}</span>，
                     從 {retireAge} 歲領到 {lifeAge} 歲剛好用完。這條路本金會逐年消耗，需留意長壽與通膨風險。
+                  </>
+                ) : selectedPlan === "C" ? (
+                  <>
+                    退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
+                    您選擇的是「<span className="font-bold text-white">一半消耗、一半配息</span>」，
+                    需在退休時準備 <span className="font-bold text-white">{fmtAmount(calc.lumpSumHalf)}</span>；
+                    一半本金邊領邊花、一半放著領配息，兼顧彈性與穩定，是進可攻退可守的折衷做法。
                   </>
                 ) : (
                   <>
@@ -505,12 +528,12 @@ export default function App() {
               </p>
               <div className="flex flex-wrap gap-3">
                 <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
-                  <p className="text-xs text-teal-100 mb-1">每月需準備現金流</p>
-                  <p className="text-xl font-bold">NT$ {fmt(calc.firstYearMonthly)}</p>
+                  <p className="text-sm text-teal-100 mb-1">每月需準備現金流</p>
+                  <p className="text-2xl font-bold">NT$ {fmt(calc.firstYearMonthly)}</p>
                 </div>
                 <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
-                  <p className="text-xs text-teal-100 mb-1">{selectedPlan === "A" ? "存一筆錢方案所需總額" : "配息路線所需本金"}</p>
-                  <p className="text-xl font-bold">{fmtAmount(selectedPlan === "A" ? calc.lumpSumDepletion : calc.lumpSumIncome)}</p>
+                  <p className="text-sm text-teal-100 mb-1">{selectedPlan === "A" ? "存一筆錢方案所需總額" : selectedPlan === "C" ? "折衷方案所需總額" : "配息路線所需本金"}</p>
+                  <p className="text-2xl font-bold">{fmtAmount(calc.targetAmount)}</p>
                 </div>
               </div>
               <button
