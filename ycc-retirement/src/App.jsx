@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Wallet, TrendingDown, Activity, Coins, Calendar,
-  PiggyBank, TrendingUp, UserRound,
+  PiggyBank, TrendingUp, UserRound, Printer,
 } from "lucide-react";
 
 // ===== 歷史報酬序列（價格報酬，不含配息）=====
@@ -710,6 +710,17 @@ export default function App() {
                   <p className="text-xl font-bold">{fmtMan(selectedPlan === "A" ? calc.lumpSumDepletion : calc.lumpSumIncome)} 萬</p>
                 </div>
               </div>
+              <button
+                onClick={() => navigate("/report", { state: {
+                  client: { clientName, clientGender, clientBirth },
+                  params: { currentAge, retireAge, lifeAge, monthlyExpense, inflation, annualReturn, incomeYieldAssumption, delayYears },
+                  calc,
+                  selectedPlan,
+                } })}
+                className="mt-5 w-full flex items-center justify-center gap-2 bg-white text-teal-800 hover:bg-teal-50 font-bold px-6 py-3 rounded-lg transition-colors"
+              >
+                <Printer size={18} /> 產出客戶報告
+              </button>
             </div>
           </div>
         </div>
