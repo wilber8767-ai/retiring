@@ -2,25 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Wallet, TrendingDown, Activity, Coins, Calendar,
-  PiggyBank, UserRound, Printer,
+  UserRound, Printer,
 } from "lucide-react";
-
-// ===== 歷史報酬序列（價格報酬，不含配息）=====
-// 2005～2024，共 20 年。索引 0 對應「當前年齡」那一年，序列走完後循環重複。
-const SP500_RETURNS = [
-  0.030, 0.136, 0.035, -0.385, 0.235, // 2005-2009
-  0.128, 0.000, 0.134, 0.296, 0.114,  // 2010-2014
-  -0.007, 0.095, 0.194, -0.062, 0.289, // 2015-2019
-  0.163, 0.269, -0.194, 0.242, 0.233,  // 2020-2024
-];
-// 0050（元大台灣50）：年度價格走勢估算值（貼近真實，部分年份為合理估算）。
-// ★ 若要更嚴謹：用券商「還原收盤價」算出逐年報酬，直接替換下面陣列即可。
-const T0050_RETURNS = [
-  0.080, 0.180, 0.110, -0.430, 0.740, // 2005-2009
-  0.120, -0.160, 0.100, 0.115, 0.085, // 2010-2014
-  -0.060, 0.180, 0.150, -0.050, 0.330, // 2015-2019
-  0.220, 0.215, -0.215, 0.265, 0.430, // 2020-2024
-];
 
 // ===== 工具函數 =====
 const fmt = (n) =>
@@ -119,8 +102,6 @@ export default function App() {
 
   const [monthlyExpense, setMonthlyExpense] = useState(50000); // 現值每月生活費
   const [initialFund, setInitialFund] = useState(1000000); // 已有準備金
-  const [monthlyFixed, setMonthlyFixed] = useState(5000);   // ★每月固定存（0% 不生息）
-  const [monthlyInvest, setMonthlyInvest] = useState(10000); // ★每月定期定額（隨報酬波動）
   const [annualReturn, setAnnualReturn] = useState(6); // 工作期/退休前報酬 %
   const [inflation, setInflation] = useState(2.5); // 通膨率 %
 
@@ -156,185 +137,11 @@ export default function App() {
     const firstYearMonthly = monthlyExpense * Math.pow(1 + inf, yearsToRetire);
     const firstYearAnnual = firstYearMonthly * 12;
 
-    // 退休所需總資金（名目現值）：全額生活費逐年折現（不抵勞保，保守估計）
-    let needAtRetire = 0;
-    for (let t = 0; t < retireYears; t++) {
-      const expenseThatYear = firstYearAnnual * Math.pow(1 + inf, t);
-      needAtRetire += expenseThatYear / Math.pow(1 + rPre, t);
-    }
-
     // 已有準備金成長到退休年（退休前報酬）
     const initialAtRetire = initialFund * Math.pow(1 + rPre, yearsToRetire);
 
-    // ★工作期投入終值：定期定額按月複利成長 + 固定存純累加（0% 不生息）
-    const monthlyRate = rPre / 12;
-    const months = yearsToRetire * 12;
-    let investFV = 0;   // 定期定額終值
-    let fixedFV = 0;    // 固定存終值（0%）
-    if (months > 0) {
-      investFV =
-        monthlyRate === 0
-          ? monthlyInvest * months
-          : monthlyInvest * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate);
-      fixedFV = monthlyFixed * months;
-    }
-    const contributionFV = investFV + fixedFV;
+    // ===== 退休所需與缺口（純算數，不模擬市場）=====
 
-    // 退休當下總資產
-    const fundAtRetire = initialAtRetire + contributionFV;
-
-    // 缺口（退休年現值）
-    const gapAtRetire = Math.max(0, needAtRetire - fundAtRetire);
-
-    // PMT 反推：在既有投入之外，現在還需每月再投入多少
-    let extraMonthly = 0;
-    if (months > 0) {
-      if (monthlyRate === 0) {
-        extraMonthly = gapAtRetire / months;
-      } else {
-        const fvFactor = (Math.pow(1 + monthlyRate, months) - 1) / monthlyRate;
-        extraMonthly = gapAtRetire / fvFactor;
-      }
-    }
-    const lumpSum = gapAtRetire / Math.pow(1 + rPre, yearsToRetire);
-
-    // ===== 折線圖資料：四條線 =====
-    // 報酬順序風險：紅/藍/紫線在「退休後第1、2年」強制套用 -20%、-25% 熊市，
-    // 第3年起才回到歷史序列。紫線額外加入防禦型生存金現金流。
-    const SHOCK_Y1 = -0.20;
-    const SHOCK_Y2 = -0.25;
-
-    const data = [];
-    let balPerfect = initialFund;
-    let balSP = initialFund;
-    let bal0050 = initialFund;
-    let balDefense = initialFund; // ★紫線：配息保本（退休後靠配息撐、本金隨市場波動）
-
-    const divRate = incomeYieldAssumption / 100; // 配息率 = 路線B年報酬率（統一欄位）
-    let bankruptPerfect = false, bankruptSP = false, bankrupt0050 = false, bankruptDefense = false;
-    let ruinPerfect = null, ruinSP = null, ruin0050 = null, ruinDefense = null;
-
-    for (let age = currentAge; age <= lifeAge; age++) {
-      const yearIndex = age - currentAge;
-      const isRetired = age >= retireAge;
-      const retireYearIndex = age - retireAge; // 0 = 退休當年, 1 = 退休後第1年...
-
-      const expenseNow = monthlyExpense * 12 * Math.pow(1 + inf, yearIndex);
-      const netDrawNow = Math.max(0, expenseNow); // 退休後每年提領（全額生活費，不抵勞保）
-      const annualInvest = monthlyInvest * 12;   // 定期定額（隨報酬波動）
-      const annualFixed = monthlyFixed * 12;     // 固定存（0% 不生息，純累加）
-
-      // 歷史序列報酬
-      const histSP = SP500_RETURNS[yearIndex % SP500_RETURNS.length];
-      const hist0050 = T0050_RETURNS[yearIndex % T0050_RETURNS.length];
-
-      // 報酬順序風險：退休後第1、2年強制熊市（紅/藍/紫共用此衝擊）
-      const shockReturn =
-        retireYearIndex === 1 ? SHOCK_Y1 :
-        retireYearIndex === 2 ? SHOCK_Y2 : null;
-      const rSP = shockReturn !== null ? shockReturn : histSP;
-      const r0050 = shockReturn !== null ? shockReturn : hist0050;
-
-      // 綠線：完美預期（固定報酬率，無市場衝擊）
-      if (!bankruptPerfect) {
-        balPerfect = balPerfect * (1 + rPre);
-        if (isRetired) balPerfect -= netDrawNow;
-        else balPerfect += annualInvest + annualFixed;
-        if (balPerfect <= 0) { balPerfect = 0; bankruptPerfect = true; ruinPerfect = age; }
-      } else balPerfect = 0;
-
-      // 紅線：S&P 500（含退休後前兩年熊市）
-      if (!bankruptSP) {
-        balSP = balSP * (1 + rSP);
-        if (isRetired) balSP -= netDrawNow;
-        else balSP += annualInvest + annualFixed;
-        if (balSP <= 0) { balSP = 0; bankruptSP = true; ruinSP = age; }
-      } else balSP = 0;
-
-      // 藍線：0050（含退休後前兩年熊市）
-      if (!bankrupt0050) {
-        bal0050 = bal0050 * (1 + r0050);
-        if (isRetired) bal0050 -= netDrawNow;
-        else bal0050 += annualInvest + annualFixed;
-        if (bal0050 <= 0) { bal0050 = 0; bankrupt0050 = true; ruin0050 = age; }
-      } else bal0050 = 0;
-
-      // ★紫線：配息保本（退休前同股票累積；退休後先用配息 cover，不足才動本金）
-      if (!bankruptDefense) {
-        if (!isRetired) {
-          balDefense = balDefense * (1 + rSP) + annualInvest + annualFixed;
-        } else {
-          // 本金隨市場波動
-          balDefense = balDefense * (1 + rSP);
-          // 當年配息（資產 × 配息率）先支應生活費
-          const dividendIncome = balDefense * divRate;
-          let need = netDrawNow - dividendIncome;
-          // 配息不足的部分才從本金提領（配息足夠則本金不減反增）
-          if (need > 0) balDefense -= need;
-          if (balDefense <= 0) { balDefense = 0; bankruptDefense = true; ruinDefense = age; }
-        }
-      } else balDefense = 0;
-
-      data.push({
-        age,
-        perfect: Math.round(balPerfect),
-        sp500: Math.round(balSP),
-        t0050: Math.round(bal0050),
-        defense: Math.round(balDefense),
-      });
-    }
-
-    // ===== 退休快照：退休時資產 + 可支撐年數（與折線圖走勢一致）=====
-    // 退休時資產 = 該線在退休年齡那筆的資產值
-    const retireRow = data.find((d) => d.age === retireAge);
-    const perfectAtRetire = retireRow ? retireRow.perfect : 0;
-    const defenseAtRetire = retireRow ? retireRow.defense : 0;
-    const sp500AtRetire = retireRow ? retireRow.sp500 : 0;
-
-    // 可支撐年數：從退休年到該線觸底前；最後一年用「殘值/當年淨提領」估算到月
-    const survivalSpan = (lineKey, ruinAge) => {
-      // 退休後逐年掃描該線資產
-      const retiredRows = data.filter((d) => d.age >= retireAge);
-      let fullYears = 0;
-      let months = 0;
-      for (let i = 0; i < retiredRows.length; i++) {
-        const row = retiredRows[i];
-        const ageHere = row.age;
-        const bal = row[lineKey];
-        // 當年淨提領（與迴圈同口徑）
-        const yi = ageHere - currentAge;
-        const expense = monthlyExpense * 12 * Math.pow(1 + inf, yi);
-        const netDraw = Math.max(0, expense);
-        if (bal > 0) {
-          fullYears = ageHere - retireAge + 1;
-        } else {
-          // 此年已歸零：用前一年殘值估算撐到第幾個月
-          const prev = retiredRows[i - 1];
-          if (prev && netDraw > 0) {
-            const prevBal = prev[lineKey];
-            months = Math.max(0, Math.min(11, Math.floor((prevBal / netDraw) * 12)));
-          }
-          fullYears = ageHere - retireAge; // 不含歸零這年
-          break;
-        }
-      }
-      // 若到壽命都沒歸零
-      const reachedLife = ruinAge === null;
-      return { years: fullYears, months, reachedLife };
-    };
-
-    const perfectSpan = survivalSpan("perfect", ruinPerfect);
-    const defenseSpan = survivalSpan("defense", ruinDefense);
-    const sp500Span = survivalSpan("sp500", ruinSP);
-
-    // ===== 促結區衍生數值 =====
-    // 1) 防禦資產多爭取的安全期年數（防禦線破產 − S&P 500 破產，未破產以壽命計）
-    const spRuinAge = ruinSP === null ? lifeAge : ruinSP;
-    const defRuinAge = ruinDefense === null ? lifeAge : ruinDefense;
-    const extraSafeYears = Math.max(0, defRuinAge - spRuinAge);
-
-    // 2) 退休現金流健康度（退休首年）：
-    //    保證型收益 = 勞保年金(年) + 配息層年配息；波動型依賴 = 仍需從市場提領的缺口
     // ===== 四步引導流程：兩條路線所需本金 =====
     // （retireYears 已於前面宣告，此處直接沿用）
     // 路線A：本金純消耗(0%)，生活費逐年通膨成長，領到壽命歸零 → 所需本金 = 逐年生活費總和
@@ -362,18 +169,13 @@ export default function App() {
     const monthlyExtra = Math.max(0, monthlyDelayed - monthlyNow);
 
     return {
-      gapAtRetire, extraMonthly, lumpSum, fundAtRetire, contributionFV,
       retireYears, lumpSumDepletion, lumpSumIncome, incomeYieldAssumption,
       monthlyNow, monthlyDelayed, monthlyExtra, targetAmount,
-      firstYearMonthly,
-      data, retireAge,
-      ruin: { perfect: ruinPerfect, sp500: ruinSP, t0050: ruin0050, defense: ruinDefense },
-      spRuinAge, defRuinAge, extraSafeYears,
-      perfectAtRetire, defenseAtRetire, sp500AtRetire, perfectSpan, defenseSpan, sp500Span,
+      firstYearMonthly, retireAge,
     };
   }, [
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
-    monthlyInvest, monthlyFixed, annualReturn, inflation,
+    annualReturn, inflation,
     incomeYieldAssumption, selectedPlan, delayYears,
   ]);
 
@@ -480,10 +282,8 @@ export default function App() {
                     通膨調整後，退休當年實際約需 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> / 月
                   </p>
                   <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
-                  <NumberInput label="工作期每月定期定額（隨市場波動）" value={monthlyInvest} setValue={setMonthlyInvest} suffix="元" step={1000} icon={PiggyBank} />
                 </div>
                 <div>
-                  <NumberInput label="工作期每月固定存（0% 不生息）" value={monthlyFixed} setValue={setMonthlyFixed} suffix="元" step={1000} icon={Wallet} />
                   <NumberInput label="預估年化報酬率" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
                   <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
                 </div>

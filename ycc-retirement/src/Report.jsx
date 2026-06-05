@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, Printer, TrendingUp, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Printer, AlertTriangle } from "lucide-react";
 
 const fmt = (n) => (isFinite(n) ? Math.round(n).toLocaleString("zh-TW") : "—");
 const fmtMan = (n) => (n / 10000).toFixed(0);
@@ -97,38 +97,6 @@ export default function Report() {
           </p>
         </section>
 
-        <section className="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingUp size={18} className="text-teal-700" />
-            <h2 className="text-base font-bold text-stone-900">為什麼需要保本型資產？</h2>
-          </div>
-          <p className="text-xs text-stone-400 mb-4">退休後遇市場大跌（前兩年 -20%／-25%）的模擬對比</p>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-stone-100 text-stone-600">
-                <th className="text-left font-semibold px-4 py-3 rounded-l-lg">情境</th>
-                <th className="text-right font-semibold px-4 py-3 rounded-r-lg">資產可支撐</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-stone-100">
-                <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#ef4444" }} />純股票（無保本）</span></td>
-                <td className={`px-4 py-3 text-right font-semibold ${calc.sp500Span.reachedLife ? "text-stone-700" : "text-red-600"}`}>
-                  {calc.sp500Span.reachedLife ? `逾 ${calc.sp500Span.years} 年（撐至壽命）` : `${calc.sp500Span.years} 年 ${calc.sp500Span.months} 個月見底`}
-                </td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3"><span className="flex items-center gap-2"><span className="w-3 h-1 rounded-full inline-block" style={{ background: "#9333ea" }} />股票 + 配息保本</span></td>
-                <td className={`px-4 py-3 text-right font-semibold ${calc.defenseSpan.reachedLife ? "text-teal-700" : "text-red-600"}`}>
-                  {calc.defenseSpan.reachedLife ? `逾 ${calc.defenseSpan.years} 年（撐至壽命）` : `${calc.defenseSpan.years} 年 ${calc.defenseSpan.months} 個月見底`}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p className="text-xs text-stone-500 mt-3 leading-relaxed">
-            保本型資產（配息基金／儲蓄險／年金）每年產生穩定配息，退休後優先用配息支應生活費，就算股市大跌也不必賤賣股票，讓本金有時間回升。
-          </p>
-        </section>
 
         <div className="no-print flex justify-center pb-4">
           <button
