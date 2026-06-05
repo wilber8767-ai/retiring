@@ -8,7 +8,17 @@ import {
 // ===== 工具函數 =====
 const fmt = (n) =>
   isFinite(n) ? Math.round(n).toLocaleString("zh-TW") : "—";
-const fmtMan = (n) => (n / 10000).toFixed(0); // 轉萬元
+const fmtMan = (n) => (n / 10000).toFixed(0); // 轉萬元（僅數字，相容舊用法）
+// 自動單位：≥1億顯示「X.XX 億」，否則「X 萬」（含千分位）
+const fmtAmount = (n) => {
+  if (!isFinite(n)) return "—";
+  const man = n / 10000;
+  if (man >= 10000) {
+    const yi = man / 10000;
+    return `${yi.toFixed(yi >= 100 ? 0 : 2)} 億`;
+  }
+  return `${Math.round(man).toLocaleString("zh-TW")} 萬`;
+};
 
 // ===== 可重用輸入元件（定義在 App 外，避免每次 render 重建導致輸入失焦）=====
 function Slider({ label, value, setValue, min, max, icon: Icon }) {
@@ -381,7 +391,7 @@ export default function App() {
                     {selectedPlan === "A" && <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-600 text-white text-xs">✓</span>}
                   </div>
                   <p className="text-xs text-stone-400 mb-3">本金不增值，從 {retireAge} 歲領到 {lifeAge} 歲（共 {calc.retireYears} 年）剛好用完</p>
-                  <p className="text-3xl font-black text-stone-800">{fmtMan(calc.lumpSumDepletion)}<span className="text-lg font-bold">萬</span></p>
+                  <p className="text-3xl font-black text-stone-800">{fmtAmount(calc.lumpSumDepletion)}</p>
                   <p className="text-xs text-stone-400 mt-2">退休時需準備的總金額</p>
                 </button>
                 {/* 路線B：配息現金流（可點選） */}
@@ -420,7 +430,7 @@ export default function App() {
                       <span className="text-sm text-stone-500">% / 年</span>
                     </div>
                   </div>
-                  <p className="text-3xl font-black text-teal-700">{fmtMan(calc.lumpSumIncome)}<span className="text-lg font-bold">萬</span></p>
+                  <p className="text-3xl font-black text-teal-700">{fmtAmount(calc.lumpSumIncome)}</p>
                   <p className="text-xs text-stone-400 mt-2">需準備的本金（{incomeYieldAssumption}% 配息可支應退休首年生活費）</p>
                 </div>
               </div>
@@ -436,7 +446,7 @@ export default function App() {
                 <h3 className="text-base font-bold text-stone-800">越晚開始，負擔越重</h3>
               </div>
               <p className="text-sm text-stone-600 mb-4 leading-relaxed">
-                同樣的目標金額（{fmtMan(calc.targetAmount)} 萬），現在就開始準備，跟拖延之後才開始，每月要存的錢差很多：
+                同樣的目標金額（{fmtAmount(calc.targetAmount)}），現在就開始準備，跟拖延之後才開始，每月要存的錢差很多：
               </p>
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 <span className="text-xs text-stone-400 mr-1">假設拖延</span>
@@ -481,14 +491,14 @@ export default function App() {
                   <>
                     退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
                     您選擇的是「<span className="font-bold text-white">存一筆錢、邊領邊花</span>」，
-                    需在退休時準備 <span className="font-bold text-white">{fmtMan(calc.lumpSumDepletion)} 萬</span>，
+                    需在退休時準備 <span className="font-bold text-white">{fmtAmount(calc.lumpSumDepletion)}</span>，
                     從 {retireAge} 歲領到 {lifeAge} 歲剛好用完。這條路本金會逐年消耗，需留意長壽與通膨風險。
                   </>
                 ) : (
                   <>
                     退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>。
                     您選擇的是「<span className="font-bold text-white">靠配息現金流、不動本金</span>」，
-                    在 {incomeYieldAssumption}% 年報酬率下需準備本金 <span className="font-bold text-white">{fmtMan(calc.lumpSumIncome)} 萬</span>；
+                    在 {incomeYieldAssumption}% 年報酬率下需準備本金 <span className="font-bold text-white">{fmtAmount(calc.lumpSumIncome)}</span>；
                     這筆本金能持續產生現金流、不必擔心市場大跌侵蝕老本，還可保留資產傳承。
                   </>
                 )}
@@ -500,7 +510,7 @@ export default function App() {
                 </div>
                 <div className="rounded-lg bg-white/10 px-4 py-3 flex-1 min-w-[140px]">
                   <p className="text-xs text-teal-100 mb-1">{selectedPlan === "A" ? "存一筆錢方案所需總額" : "配息路線所需本金"}</p>
-                  <p className="text-xl font-bold">{fmtMan(selectedPlan === "A" ? calc.lumpSumDepletion : calc.lumpSumIncome)} 萬</p>
+                  <p className="text-xl font-bold">{fmtAmount(selectedPlan === "A" ? calc.lumpSumDepletion : calc.lumpSumIncome)}</p>
                 </div>
               </div>
               <button

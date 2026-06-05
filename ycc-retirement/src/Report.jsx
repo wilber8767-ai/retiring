@@ -2,7 +2,15 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, Printer, AlertTriangle } from "lucide-react";
 
 const fmt = (n) => (isFinite(n) ? Math.round(n).toLocaleString("zh-TW") : "—");
-const fmtMan = (n) => (n / 10000).toFixed(0);
+const fmtAmount = (n) => {
+  if (!isFinite(n)) return "—";
+  const man = n / 10000;
+  if (man >= 10000) {
+    const yi = man / 10000;
+    return `${yi.toFixed(yi >= 100 ? 0 : 2)} 億`;
+  }
+  return `${Math.round(man).toLocaleString("zh-TW")} 萬`;
+};
 
 export default function Report() {
   const navigate = useNavigate();
@@ -58,8 +66,8 @@ export default function Report() {
           <p className="text-sm text-teal-50 leading-relaxed mb-5">
             退休後每月需要 <span className="font-bold text-white">NT$ {fmt(calc.firstYearMonthly)}</span>（通膨調整後）。
             {isA
-              ? `採「存一筆錢」方式，需在退休時準備 ${fmtMan(targetAmount)} 萬，從 ${params.retireAge} 歲領到 ${params.lifeAge} 歲。`
-              : `採「配息現金流」方式，在 ${params.incomeYieldAssumption}% 年報酬率下需準備本金 ${fmtMan(targetAmount)} 萬，本金可保留、持續產生現金流。`}
+              ? `採「存一筆錢」方式，需在退休時準備 ${fmtAmount(targetAmount)}，從 ${params.retireAge} 歲領到 ${params.lifeAge} 歲。`
+              : `採「配息現金流」方式，在 ${params.incomeYieldAssumption}% 年報酬率下需準備本金 ${fmtAmount(targetAmount)}，本金可保留、持續產生現金流。`}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-lg bg-white/10 px-4 py-3">
@@ -68,7 +76,7 @@ export default function Report() {
             </div>
             <div className="rounded-lg bg-white/10 px-4 py-3">
               <p className="text-xs text-teal-100 mb-1">需準備總額</p>
-              <p className="text-lg font-bold">{fmtMan(targetAmount)} 萬</p>
+              <p className="text-lg font-bold">{fmtAmount(targetAmount)}</p>
             </div>
             <div className="rounded-lg bg-white/10 px-4 py-3">
               <p className="text-xs text-teal-100 mb-1">現在每月該存</p>
