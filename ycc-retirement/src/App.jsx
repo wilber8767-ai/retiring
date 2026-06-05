@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Wallet, TrendingDown, Activity, Coins, Calendar,
-  PiggyBank, TrendingUp, UserRound, Printer,
+  PiggyBank, UserRound, Printer,
 } from "lucide-react";
 
 // ===== 歷史報酬序列（價格報酬，不含配息）=====
@@ -131,7 +131,6 @@ export default function App() {
   const [needAnswer, setNeedAnswer] = useState(null); // 第二步提問：need=一定需要 / maybe=可有可無
   const [delayYears, setDelayYears] = useState(10); // 拖延成本：晚幾年才開始準備
 
-  const [dividendRate, setDividendRate] = useState(4); // 配息保本：年配息率 %
 
 
   // ===== 核心運算 =====
@@ -211,7 +210,7 @@ export default function App() {
     let bal0050 = initialFund;
     let balDefense = initialFund; // ★紫線：配息保本（退休後靠配息撐、本金隨市場波動）
 
-    const divRate = dividendRate / 100;
+    const divRate = incomeYieldAssumption / 100; // 配息率 = 路線B年報酬率（統一欄位）
     let bankruptPerfect = false, bankruptSP = false, bankrupt0050 = false, bankruptDefense = false;
     let ruinPerfect = null, ruinSP = null, ruin0050 = null, ruinDefense = null;
 
@@ -375,7 +374,6 @@ export default function App() {
   }, [
     currentAge, retireAge, lifeAge, monthlyExpense, initialFund,
     monthlyInvest, monthlyFixed, annualReturn, inflation,
-    dividendRate,
     incomeYieldAssumption, selectedPlan, delayYears,
   ]);
 
@@ -459,7 +457,7 @@ export default function App() {
             <h2 className="text-lg font-bold text-stone-900">參數設定</h2>
           </div>
           <p className="text-xs text-stone-400 mb-4">填入退休規劃參數，下方引導流程將即時更新</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start max-w-4xl">
             {/* 第一欄：年齡控制 */}
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -486,17 +484,6 @@ export default function App() {
               <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
             </div>
 
-            {/* 第三欄：配息保本設定 */}
-            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
-              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <TrendingUp size={18} className="text-teal-700" /> 配息保本設定
-              </h2>
-              <p className="text-xs text-stone-500 mb-4">退休後保本型資產（配息基金／儲蓄險／年金）的年配息率</p>
-              <NumberInput label="年配息率" value={dividendRate} setValue={setDividendRate} suffix="%" step={0.1} icon={TrendingUp} />
-              <p className="text-xs text-stone-500 leading-relaxed">
-                退休後優先用配息支應生活費，配息足夠時本金不減；配息不足才動用本金。配息率越高，本金越能長久保留、對抗市場大跌。
-              </p>
-            </div>
           </div>
         </div>
         {/* /參數設定區 */}
