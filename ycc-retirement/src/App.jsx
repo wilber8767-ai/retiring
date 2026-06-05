@@ -457,7 +457,7 @@ export default function App() {
             <h2 className="text-lg font-bold text-stone-900">參數設定</h2>
           </div>
           <p className="text-xs text-stone-400 mb-4">填入退休規劃參數，下方引導流程將即時更新</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start max-w-4xl">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* 第一欄：年齡控制 */}
             <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -468,20 +468,26 @@ export default function App() {
               <Slider label="預估壽命" value={lifeAge} setValue={setLifeAge} min={70} max={100} />
             </div>
 
-            {/* 第二欄：財務基礎 */}
-            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm">
+            {/* 第二欄：財務基礎（佔兩格寬，內部兩欄排列） */}
+            <div className="bg-white rounded-xl p-6 border border-stone-200 shadow-sm lg:col-span-2">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <Wallet size={18} className="text-teal-700" /> 財務基礎
               </h2>
-              <NumberInput label="退休後每月生活費（現值）" value={monthlyExpense} setValue={setMonthlyExpense} suffix="元" step={1000} icon={Coins} />
-              <p className="-mt-3 mb-4 text-xs text-stone-500">
-                通膨調整後，退休當年實際約需 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> / 月
-              </p>
-              <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
-              <NumberInput label="工作期每月定期定額（隨市場波動）" value={monthlyInvest} setValue={setMonthlyInvest} suffix="元" step={1000} icon={PiggyBank} />
-              <NumberInput label="工作期每月固定存（0% 不生息）" value={monthlyFixed} setValue={setMonthlyFixed} suffix="元" step={1000} icon={Wallet} />
-              <NumberInput label="預估年化報酬率" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
-              <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                <div>
+                  <NumberInput label="退休後每月生活費（現值）" value={monthlyExpense} setValue={setMonthlyExpense} suffix="元" step={1000} icon={Coins} />
+                  <p className="-mt-3 mb-4 text-xs text-stone-500">
+                    通膨調整後，退休當年實際約需 <span className="font-semibold text-teal-700">NT$ {fmt(calc.firstYearMonthly)}</span> / 月
+                  </p>
+                  <NumberInput label="目前已有退休準備金" value={initialFund} setValue={setInitialFund} suffix="元" step={10000} icon={Wallet} />
+                  <NumberInput label="工作期每月定期定額（隨市場波動）" value={monthlyInvest} setValue={setMonthlyInvest} suffix="元" step={1000} icon={PiggyBank} />
+                </div>
+                <div>
+                  <NumberInput label="工作期每月固定存（0% 不生息）" value={monthlyFixed} setValue={setMonthlyFixed} suffix="元" step={1000} icon={Wallet} />
+                  <NumberInput label="預估年化報酬率" value={annualReturn} setValue={setAnnualReturn} suffix="%" step={0.1} icon={Activity} />
+                  <NumberInput label="通膨率" value={inflation} setValue={setInflation} suffix="%" step={0.1} icon={TrendingDown} />
+                </div>
+              </div>
             </div>
 
           </div>
